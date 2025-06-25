@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Select Event Type - M8 Ticketing</title>
+  <!-- Firebase SDK (same as your other pages) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    
+    window.firebase = { auth };
+  </script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .event-type-card {
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+    }
+    .event-type-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+    .free-card:hover {
+      border-color: rgba(74, 222, 128, 0.5);
+    }
+    .paid-card:hover {
+      border-color: rgba(96, 165, 250, 0.5);
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="dashboard.html" class="text-white hover:text-pink-400 text-sm flex items-center gap-1">
+      <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-md mx-auto px-4 py-12">
+    <div class="text-center mb-12">
+      <h1 class="text-3xl font-bold text-pink-500 mb-2">Create New Event</h1>
+      <p class="text-gray-400">Choose your event type to get started</p>
+    </div>
+
+    <div class="space-y-6">
+      <!-- Free Event Option -->
+      <a href="create-free-event.html" class="event-type-card free-card block bg-gray-800 hover:bg-gray-750 p-8 rounded-xl">
+        <div class="text-center">
+          <div class="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-ticket-alt text-white text-2xl"></i>
+          </div>
+          <h2 class="text-2xl font-bold mb-2 text-green-400">Free Event</h2>
+          <div class="space-y-2 text-gray-300 mb-4">
+            <p class="flex items-center justify-center gap-2">
+              <i class="fas fa-check text-green-400"></i> No platform fees
+            </p>
+            <p class="flex items-center justify-center gap-2">
+              <i class="fas fa-check text-green-400"></i> Full event features
+            </p>
+            <p class="flex items-center justify-center gap-2">
+              <i class="fas fa-check text-green-400"></i> Instant ticket access
+            </p>
+          </div>
+          <button class="mt-4 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full font-semibold">
+            Create Free Event
+          </button>
+        </div>
+      </a>
+
+      <!-- Paid Event Option -->
+      <a href="create-event.html?type=paid" class="event-type-card paid-card block bg-gray-800 hover:bg-gray-750 p-8 rounded-xl">
+        <div class="text-center">
+          <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-money-bill-wave text-white text-2xl"></i>
+          </div>
+          <h2 class="text-2xl font-bold mb-2 text-blue-400">Paid Event</h2>
+          <div class="space-y-2 text-gray-300 mb-4">
+            <p class="flex items-center justify-center gap-2">
+              <i class="fas fa-check text-blue-400"></i> Monetize your event
+            </p>
+            <p class="flex items-center justify-center gap-2">
+              <i class="fas fa-check text-blue-400"></i> Platform fees apply
+            </p>
+            <p class="flex items-center justify-center gap-2">
+              <i class="fas fa-check text-blue-400"></i> Secure payment processing
+            </p>
+          </div>
+          <button class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold">
+            Create Paid Event
+          </button>
+        </div>
+      </a>
+    </div>
+
+    <div class="mt-12 bg-gray-900 p-6 rounded-xl">
+      <h3 class="text-lg font-semibold mb-3 text-center text-pink-400">
+        <i class="fas fa-question-circle mr-2"></i>Not sure which to choose?
+      </h3>
+      <div class="text-sm text-gray-400 space-y-2">
+        <p><span class="font-medium text-green-400">Free Events</span> are perfect for community gatherings, free workshops, or promotional events.</p>
+        <p><span class="font-medium text-blue-400">Paid Events</span> are ideal when you need to charge attendees, like for concerts, paid workshops, or ticketed experiences.</p>
+        <p class="mt-3 text-center">You can always upgrade to paid later!</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check auth state
+      const { auth } = window.firebase;
+      const { onAuthStateChanged } = window.firebase.functions;
+      
+      onAuthStateChanged(auth, (user) => {
+        if (!user) {
+          window.location.href = 'login.html';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

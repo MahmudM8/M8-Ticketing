@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Free Event - M8 Ticketing</title>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      collection,
+      addDoc,
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebase = {
+      auth,
+      db,
+      functions: { collection, addDoc, serverTimestamp }
+    };
+  </script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Flatpickr for datetime -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .free-mode-banner {
+      background: linear-gradient(90deg, rgba(74, 222, 128, 0.1) 0%, rgba(6, 95, 70, 0.1) 100%);
+      border-left: 4px solid #4ade80;
+    }
+    .flatpickr-input {
+      background: #1f2937 !important;
+      border-color: #374151 !important;
+      color: white !important;
+    }
+    .loader {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #4ade80;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .success-message {
+      background: rgba(74, 222, 128, 0.2);
+      border-left: 4px solid #4ade80;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+      background-position: right 0.5rem center;
+      background-repeat: no-repeat;
+      background-size: 1.5em 1.5em;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="dashboard.html" class="text-white hover:text-pink-400 text-sm flex items-center gap-1">
+      <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+  </header>
+
+  <!-- Free Event Banner -->
+  <div class="free-mode-banner p-4 mb-8">
+    <div class="max-w-3xl mx-auto flex items-center gap-3">
+      <i class="fas fa-ticket-alt text-green-400 text-2xl"></i>
+      <div>
+        <h2 class="font-bold text-green-400">Free Event Mode</h2>
+        <p class="text-sm text-gray-300">No fees • Unlimited tickets • Instant access</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Event Form -->
+  <div class="max-w-3xl mx-auto px-4 pb-12">
+    <!-- Success Message (Hidden by default) -->
+    <div id="successMessage" class="success-message p-4 mb-6 rounded-r-lg hidden">
+      <div class="flex items-center">
+        <i class="fas fa-check-circle text-green-400 text-xl mr-2"></i>
+        <p class="text-green-400">Event published successfully! Redirecting...</p>
+      </div>
+    </div>
+
+    <form id="freeEventForm">
+      <!-- Event Name -->
+      <div class="mb-6">
+        <label class="block text-sm font-semibold mb-2">Event Name*</label>
+        <input type="text" id="eventName" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" 
+               placeholder="Summer Music Festival" required>
+      </div>
+
+      <!-- Event Description -->
+      <div class="mb-6">
+        <label class="block text-sm font-semibold mb-2">Event Description*</label>
+        <textarea id="eventDescription" rows="3" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" 
+                  placeholder="Tell attendees what makes your event special..." required></textarea>
+      </div>
+
+      <!-- Event Category -->
+      <div class="mb-6">
+        <label class="block text-sm font-semibold mb-2">Event Category*</label>
+        <select id="eventCategory" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700 appearance-none" required>
+          <option value="" disabled selected>Select a category</option>
+          <option value="music">Music</option>
+          <option value="tech">Tech</option>
+          <option value="party">Party</option>
+          <option value="workshop">Workshop</option>
+          <option value="sports">Sports</option>
+          <option value="business">Business</option>
+          <option value="art">Art & Culture</option>
+          <option value="food">Food & Drink</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <!-- Event Date & Time -->
+      <div class="mb-6">
+        <label class="block text-sm font-semibold mb-2">Event Date & Time*</label>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Start</label>
+            <input type="datetime-local" id="eventStart" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" required>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">End</label>
+            <input type="datetime-local" id="eventEnd" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" required>
+          </div>
+        </div>
+      </div>
+
+      <!-- Organizer Info -->
+      <div class="mb-6">
+        <label class="block text-sm font-semibold mb-2">Organizer Details*</label>
+        <input type="text" id="organizerName" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700 mb-3" 
+               placeholder="Organizer or Company Name" required>
+        <input type="text" id="contactInfo" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" 
+               placeholder="Contact (Email, Phone, or @InstagramHandle)" required>
+      </div>
+
+      <!-- Custom URL -->
+      <div class="mb-6">
+        <label class="block text-sm font-semibold mb-2">Custom URL*</label>
+        <div class="flex">
+          <span class="bg-gray-700 px-4 py-3 rounded-l-lg">m8ticketing.com/events/</span>
+          <input type="text" id="customUrl" class="flex-1 bg-gray-800 px-4 py-3 rounded-r-lg border border-gray-700" 
+                 placeholder="summer-fest" pattern="[a-z0-9-]+" required>
+        </div>
+      </div>
+
+      <!-- Ticket Settings -->
+      <div class="bg-gray-900 p-6 rounded-lg mb-6">
+        <h3 class="text-lg font-semibold mb-4 text-green-400">
+          <i class="fas fa-ticket-alt mr-2"></i> Ticket Settings
+        </h3>
+        <div class="mb-4">
+          <label class="block text-sm font-semibold mb-2">Total Tickets Available*</label>
+          <input type="number" id="ticketQuantity" min="1" value="100" 
+                 class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" required>
+        </div>
+        <div>
+          <label class="inline-flex items-center">
+            <input type="checkbox" id="collectAttendeeInfo" class="rounded border-gray-600 text-green-500" checked>
+            <span class="ml-2">Collect attendee names & emails</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="flex flex-col sm:flex-row justify-center gap-4">
+        <button type="submit" id="publishBtn" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-full font-semibold">
+          <span id="publishText"><i class="fas fa-check-circle mr-2"></i> Publish Event</span>
+          <span id="publishLoader" class="hidden">
+            <span class="loader"></span> Publishing...
+          </span>
+        </button>
+        <button type="button" id="saveDraftBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-8 py-3 rounded-full font-semibold">
+          <i class="fas fa-save mr-2"></i> Save as Draft
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { auth, db, functions } = window.firebase;
+      const { collection, addDoc, serverTimestamp } = functions;
+
+      // Initialize datetime pickers
+      flatpickr("#eventStart", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        minDate: "today",
+        time_24hr: true
+      });
+
+      flatpickr("#eventEnd", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        minDate: "today",
+        time_24hr: true
+      });
+
+      // Form submission
+      document.getElementById('freeEventForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const user = auth.currentUser;
+        if (!user) {
+          window.location.href = 'login.html';
+          return;
+        }
+
+        // Show loading state
+        document.getElementById('publishText').classList.add('hidden');
+        document.getElementById('publishLoader').classList.remove('hidden');
+        document.getElementById('publishBtn').disabled = true;
+
+        // Create event data
+        const eventData = {
+          eventType: "free",
+          name: document.getElementById('eventName').value,
+          description: document.getElementById('eventDescription').value,
+          category: document.getElementById('eventCategory').value,
+          startTime: new Date(document.getElementById('eventStart').value),
+          endTime: new Date(document.getElementById('eventEnd').value),
+          organizer: document.getElementById('organizerName').value,
+          contact: document.getElementById('contactInfo').value,
+          customUrl: document.getElementById('customUrl').value,
+          ticketQuantity: parseInt(document.getElementById('ticketQuantity').value),
+          collectAttendeeInfo: document.getElementById('collectAttendeeInfo').checked,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          userId: user.uid,
+          status: "published", // Changed from "active" to be more explicit
+          isPublished: true,
+          isFree: true,
+          ticketPrice: 0,
+          image: "https://via.placeholder.com/800x400?text=Event+Image"
+        };
+
+        try {
+          // Save to Firestore
+          const docRef = await addDoc(collection(db, 'events'), eventData);
+          
+          // Show success message
+          document.getElementById('successMessage').classList.remove('hidden');
+          
+          // Create tickets subcollection
+          await addDoc(collection(db, `events/${docRef.id}/tickets`), {
+            type: "free",
+            total: eventData.ticketQuantity,
+            available: eventData.ticketQuantity,
+            price: 0,
+            name: "General Admission"
+          });
+
+          // Redirect after 2 seconds
+          setTimeout(() => {
+            window.location.href = `event.html?id=${docRef.id}`;
+          }, 2000);
+          
+        } catch (error) {
+          console.error("Error creating free event:", error);
+          alert(`Failed to create event: ${error.message}`);
+          
+          // Reset button state
+          document.getElementById('publishText').classList.remove('hidden');
+          document.getElementById('publishLoader').classList.add('hidden');
+          document.getElementById('publishBtn').disabled = false;
+        }
+      });
+
+      // Save as draft functionality
+      document.getElementById('saveDraftBtn').addEventListener('click', async () => {
+        const user = auth.currentUser;
+        if (!user) {
+          window.location.href = 'login.html';
+          return;
+        }
+
+        // Create draft event data
+        const draftData = {
+          eventType: "free",
+          name: document.getElementById('eventName').value || "Untitled Event",
+          description: document.getElementById('eventDescription').value,
+          category: document.getElementById('eventCategory').value,
+          startTime: document.getElementById('eventStart').value ? 
+                    new Date(document.getElementById('eventStart').value) : null,
+          endTime: document.getElementById('eventEnd').value ? 
+                  new Date(document.getElementById('eventEnd').value) : null,
+          organizer: document.getElementById('organizerName').value,
+          contact: document.getElementById('contactInfo').value,
+          customUrl: document.getElementById('customUrl').value || "draft-" + Math.random().toString(36).substring(7),
+          ticketQuantity: parseInt(document.getElementById('ticketQuantity').value) || 100,
+          collectAttendeeInfo: document.getElementById('collectAttendeeInfo').checked,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          userId: user.uid,
+          status: "draft",
+          isPublished: false,
+          isFree: true,
+          ticketPrice: 0
+        };
+
+        try {
+          await addDoc(collection(db, 'events'), draftData);
+          alert("Draft saved successfully!");
+          window.location.href = "dashboard.html";
+        } catch (error) {
+          console.error("Error saving draft:", error);
+          alert("Failed to save draft. Please try again.");
+        }
+      });
+
+      // Auto-generate URL from event name
+      document.getElementById('eventName').addEventListener('input', function() {
+        const customUrlInput = document.getElementById('customUrl');
+        if (!customUrlInput.value) {
+          const url = this.value
+            .toLowerCase()
+            .replace(/[^\w\s]/gi, '')
+            .replace(/\s+/g, '-')
+            .substring(0, 30);
+          customUrlInput.value = url;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

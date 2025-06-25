@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M8 - Your Vibe. Your Ticket.</title>
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged,
+      signOut 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      collection,
+      query,
+      where,
+      orderBy,
+      limit,
+      onSnapshot,
+      doc,
+      updateDoc,
+      increment
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebase = {
+      auth,
+      db,
+      functions: {
+        collection,
+        query,
+        where,
+        orderBy,
+        limit,
+        onSnapshot,
+        doc,
+        updateDoc,
+        increment,
+        onAuthStateChanged,
+        signOut
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .event-card {
+      transition: all 0.3s ease;
+    }
+    .event-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #1a1a2e 25%, #16213e 50%, #1a1a2e 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .btn-primary {
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 15px rgba(236, 72, 153, 0.5);
+    }
+    .category-filter.active {
+      background: linear-gradient(135deg, #ec4899, #7c3aed);
+    }
+    /* Trending Events Styles */
+    .trending-scroll {
+      display: flex;
+      overflow-x: auto;
+      gap: 16px;
+      padding-bottom: 16px;
+      scrollbar-width: none;
+    }
+    .trending-scroll::-webkit-scrollbar {
+      display: none;
+    }
+    .trending-card {
+      flex: 0 0 280px;
+      background: #1e1b3b;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    .trending-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: linear-gradient(135deg, #ec4899, #7c3aed);
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="p-6 flex justify-between items-center border-b border-gray-700">
+  <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+  <div class="flex items-center gap-4">
+    <a href="login.html" id="loginBtn" class="text-white hover:text-pink-400">Login</a>
+    <a href="signup.html" id="signupBtn" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-full font-semibold">Sign Up</a>
+  </div>
+</header>
+
+<!-- Hero Section -->
+<section class="relative overflow-hidden">
+  <div class="max-w-7xl mx-auto px-4 py-20 md:py-32 text-center">
+    <h1 class="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+      Your Vibe. Your Ticket.
+    </h1>
+    <p class="text-xl text-gray-300 max-w-2xl mx-auto mb-8">
+      Discover the hottest events in your city. Concerts, parties, art shows - all in one place.
+    </p>
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="#events" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-full font-semibold">
+        Explore Events
+      </a>
+      <a href="create-event.html" class="btn-primary bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-full font-semibold border border-gray-600">
+        Host an Event
+      </a>
+    </div>
+  </div>
+  <div class="absolute inset-0 -z-10 bg-gradient-to-br from-purple-900/30 via-pink-900/20 to-blue-900/30"></div>
+</section>
+
+<!-- Trending Events Section -->
+<section class="py-8">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-bold flex items-center gap-2">
+        <i class="fas fa-fire text-pink-500"></i> Trending This Week
+      </h2>
+      <a href="#events" class="text-pink-500 hover:underline text-sm">View all</a>
+    </div>
+    
+    <div id="trendingEvents" class="trending-scroll">
+      <!-- Loading placeholder -->
+      <div class="trending-card skeleton h-64"></div>
+      <div class="trending-card skeleton h-64"></div>
+      <div class="trending-card skeleton h-64"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Search & Filters -->
+<section class="max-w-7xl mx-auto px-4 py-8">
+  <div class="bg-gray-800 rounded-xl p-6 shadow-lg">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="md:col-span-2">
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="Search events, artists, venues..." 
+          class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none"
+        >
+      </div>
+      <div>
+        <select 
+          id="locationSelect" 
+          class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none"
+        >
+          <option value="">All Locations</option>
+          <option value="lagos">Lagos</option>
+          <option value="abuja">Abuja</option>
+          <option value="port harcourt">Port Harcourt</option>
+          <option value="kano">Kano</option>
+        </select>
+      </div>
+      <div>
+        <select 
+          id="categorySelect" 
+          class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none"
+        >
+          <option value="">All Categories</option>
+          <option value="concert">Concerts</option>
+          <option value="party">Parties</option>
+          <option value="art">Art Shows</option>
+          <option value="comedy">Comedy</option>
+          <option value="festival">Festivals</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Category Filters -->
+<section class="max-w-7xl mx-auto px-4 py-4">
+  <div class="flex flex-wrap justify-center gap-2 mb-6">
+    <button class="category-filter active bg-pink-600 text-white px-4 py-2 rounded-full" data-category="all">All Events</button>
+    <button class="category-filter bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-full" data-category="concert">🎵 Concerts</button>
+    <button class="category-filter bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-full" data-category="festival">🎉 Festivals</button>
+    <button class="category-filter bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-full" data-category="party">🏠 Parties</button>
+    <button class="category-filter bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-full" data-category="art">🎨 Art Shows</button>
+  </div>
+</section>
+
+<!-- Events Section -->
+<section id="events" class="max-w-7xl mx-auto px-4 py-12">
+  <h2 class="text-3xl font-bold text-center mb-12">
+    <span class="bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+      Upcoming Events
+    </span>
+  </h2>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div class="skeleton h-96 rounded-2xl"></div>
+    <div class="skeleton h-96 rounded-2xl"></div>
+    <div class="skeleton h-96 rounded-2xl"></div>
+  </div>
+
+  <!-- Events Grid -->
+  <div id="eventsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-8 hidden">
+    <!-- Events will be populated here -->
+  </div>
+
+  <!-- Empty State -->
+  <div id="emptyState" class="text-center py-16 hidden">
+    <i class="fas fa-calendar-times text-5xl text-gray-600 mb-4"></i>
+    <h3 class="text-2xl font-semibold mb-2">No events found</h3>
+    <p class="text-gray-400 mb-6">Try adjusting your search filters</p>
+    <button id="clearFiltersBtn" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-full font-semibold">
+      Clear Filters
+    </button>
+  </div>
+</section>
+
+<!-- Why Choose Us Section -->
+<section class="py-16 bg-gradient-to-br from-purple-900/20 to-blue-900/20">
+  <div class="max-w-7xl mx-auto px-4">
+    <h2 class="text-3xl font-bold text-center mb-12">Why Choose M8-Ticketing?</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div class="bg-gray-800/50 p-6 rounded-xl">
+        <div class="text-pink-500 text-3xl mb-4">
+          <i class="fas fa-bolt"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Instant Delivery</h3>
+        <p class="text-gray-400">Get your tickets immediately after purchase</p>
+      </div>
+      <div class="bg-gray-800/50 p-6 rounded-xl">
+        <div class="text-pink-500 text-3xl mb-4">
+          <i class="fas fa-shield-alt"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Secure Payments</h3>
+        <p class="text-gray-400">Bank-level encryption for all transactions</p>
+      </div>
+      <div class="bg-gray-800/50 p-6 rounded-xl">
+        <div class="text-pink-500 text-3xl mb-4">
+          <i class="fas fa-headset"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">24/7 Support</h3>
+        <p class="text-gray-400">Dedicated customer service team</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Call to Action -->
+<section class="bg-gray-800 py-16">
+  <div class="max-w-7xl mx-auto px-4 text-center">
+    <h2 class="text-3xl font-bold mb-6">Ready to host your own event?</h2>
+    <p class="text-gray-300 max-w-2xl mx-auto mb-8">
+      Join thousands of organizers who use M8-Ticketing to sell tickets and manage their events.
+    </p>
+    <a href="create-event.html" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-full font-semibold inline-block">
+      Create Event Now
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="border-t border-gray-700 py-12">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div>
+        <a href="index.html" class="text-pink-500 font-bold text-2xl mb-4 inline-block">M8-Ticketing</a>
+        <p class="text-gray-400">Your Vibe. Your Ticket.</p>
+        <div class="flex gap-4 mt-4">
+          <a href="#" class="text-gray-400 hover:text-white">
+            <i class="fab fa-twitter"></i>
+          </a>
+          <a href="#" class="text-gray-400 hover:text-white">
+            <i class="fab fa-instagram"></i>
+          </a>
+          <a href="#" class="text-gray-400 hover:text-white">
+            <i class="fab fa-facebook"></i>
+          </a>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-4">Company</h3>
+        <ul class="space-y-2">
+          <li><a href="#" class="text-gray-400 hover:text-white">About Us</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Careers</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Blog</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Press</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-4">Support</h3>
+        <ul class="space-y-2">
+          <li><a href="#" class="text-gray-400 hover:text-white">Help Center</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Contact Us</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Privacy</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Terms</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-4">Newsletter</h3>
+        <p class="text-gray-400 mb-4">Subscribe for event updates and deals</p>
+        <div class="flex">
+          <input type="email" placeholder="Your email" class="bg-gray-700 text-white px-4 py-2 rounded-l-lg focus:outline-none w-full">
+          <button class="bg-pink-600 hover:bg-pink-700 px-4 py-2 rounded-r-lg">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-500">
+      &copy; 2024 M8-Ticketing. All rights reserved.
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    const { auth, db, functions } = window.firebase;
+    const { 
+      collection,
+      query,
+      where,
+      orderBy,
+      limit,
+      onSnapshot,
+      doc,
+      updateDoc,
+      increment,
+      onAuthStateChanged,
+      signOut
+    } = functions;
+
+    // DOM Elements
+    const searchInput = document.getElementById('searchInput');
+    const locationSelect = document.getElementById('locationSelect');
+    const categorySelect = document.getElementById('categorySelect');
+    const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+    const loadingState = document.getElementById('loadingState');
+    const eventsGrid = document.getElementById('eventsGrid');
+    const emptyState = document.getElementById('emptyState');
+    const categoryFilters = document.querySelectorAll('.category-filter');
+    const loginBtn = document.getElementById('loginBtn');
+    const signupBtn = document.getElementById('signupBtn');
+
+    // Track event views
+    function trackEventView(eventId) {
+      const eventRef = doc(db, 'events', eventId);
+      updateDoc(eventRef, {
+        'stats.views': increment(1),
+        'updatedAt': new Date()
+      });
+    }
+
+    // Load trending events with real-time updates
+    function loadTrendingEvents() {
+      const trendingContainer = document.getElementById('trendingEvents');
+      trendingContainer.innerHTML = '';
+      
+      // Show loading skeletons
+      for (let i = 0; i < 3; i++) {
+        trendingContainer.innerHTML += '<div class="trending-card skeleton h-64"></div>';
+      }
+
+      const trendingQuery = query(
+        collection(db, 'events'),
+        where('status', '==', 'active'),
+        where('datetime', '>=', new Date().toISOString()),
+        orderBy('stats.views', 'desc'),
+        limit(5)
+      );
+
+      const unsubscribe = onSnapshot(trendingQuery, (snapshot) => {
+        trendingContainer.innerHTML = '';
+        
+        if (snapshot.empty) {
+          trendingContainer.innerHTML = '<p class="text-gray-400 py-8 text-center">No trending events found</p>';
+          return;
+        }
+
+        snapshot.forEach(doc => {
+          const event = doc.data();
+          const eventDate = new Date(event.datetime);
+          
+          trendingContainer.innerHTML += `
+            <a href="event.html?id=${doc.id}" class="trending-card" onclick="trackEventView('${doc.id}')">
+              <span class="trending-badge">${event.stats?.views || 0} views</span>
+              <img src="${event.image || 'https://via.placeholder.com/300x200?text=Event+Image'}" 
+                   class="w-full h-40 object-cover">
+              <div class="p-4">
+                <h3 class="font-semibold line-clamp-1">${event.name}</h3>
+                <p class="text-gray-400 text-sm mt-1">
+                  <i class="fas fa-calendar-day mr-1"></i>
+                  ${eventDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
+                </p>
+                <p class="text-pink-500 font-medium mt-2">
+                  From ₦${event.tickets ? Math.min(...event.tickets.map(t => t.price)).toLocaleString() : '0'}
+                </p>
+                <div class="flex items-center text-xs text-gray-500 mt-2">
+                  <i class="fas fa-users mr-1"></i>
+                  ${event.stats?.ticketsSold || 0} attending
+                </div>
+              </div>
+            </a>
+          `;
+        });
+      });
+    }
+
+    // Load all events with real-time updates
+    function loadAllEvents() {
+      loadingState.classList.remove('hidden');
+      eventsGrid.classList.add('hidden');
+      emptyState.classList.add('hidden');
+
+      const eventsQuery = query(
+        collection(db, 'events'),
+        where('status', '==', 'active'),
+        where('datetime', '>=', new Date().toISOString()),
+        orderBy('datetime'),
+        limit(12)
+      );
+
+      const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+        loadingState.classList.add('hidden');
+        eventsGrid.innerHTML = '';
+        
+        if (snapshot.empty) {
+          emptyState.classList.remove('hidden');
+          return;
+        }
+
+        snapshot.forEach(doc => {
+          const event = doc.data();
+          const eventDate = new Date(event.datetime);
+          
+          const eventCard = document.createElement('div');
+          eventCard.className = 'event-card bg-gray-800 rounded-2xl overflow-hidden';
+          eventCard.dataset.title = event.name.toLowerCase();
+          eventCard.dataset.location = event.location.toLowerCase();
+          eventCard.dataset.category = event.category.toLowerCase();
+          
+          eventCard.innerHTML = `
+            <div class="relative">
+              <img src="${event.image || 'https://via.placeholder.com/400x225?text=Event+Image'}" 
+                   alt="${event.name}" class="w-full h-48 object-cover">
+              ${event.stats?.views > 50 ? '<span class="absolute top-2 right-2 bg-pink-600 text-xs px-2 py-1 rounded-full">Trending</span>' : ''}
+            </div>
+            <div class="p-6">
+              <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-semibold">${event.name}</h3>
+                <span class="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
+                  ${event.category}
+                </span>
+              </div>
+              <div class="flex items-center gap-2 text-gray-400 mb-3">
+                <i class="fas fa-calendar-day text-sm"></i>
+                <span class="text-sm">${eventDate.toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric',
+                  year: 'numeric'
+                })}</span>
+              </div>
+              <div class="flex items-center gap-2 text-gray-400 mb-4">
+                <i class="fas fa-map-marker-alt text-sm"></i>
+                <span class="text-sm">${event.location}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-pink-500 font-medium">From ₦${event.tickets ? Math.min(...event.tickets.map(t => t.price)).toLocaleString() : '0'}</span>
+                <a href="event.html?id=${doc.id}" onclick="trackEventView('${doc.id}')" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-full font-semibold inline-block">
+                  View Event
+                </a>
+              </div>
+            </div>
+          `;
+          
+          eventsGrid.appendChild(eventCard);
+        });
+
+        eventsGrid.classList.remove('hidden');
+        setupEventFilters();
+      });
+    }
+
+    // Filter events
+    function setupEventFilters() {
+      function filterEvents() {
+        const query = searchInput.value.toLowerCase();
+        const location = locationSelect.value.toLowerCase();
+        const category = categorySelect.value.toLowerCase();
+        const activeCategory = document.querySelector('.category-filter.active').dataset.category;
+        
+        let visibleCount = 0;
+        const eventCards = document.querySelectorAll('.event-card');
+        
+        eventCards.forEach(card => {
+          const title = card.dataset.title;
+          const cardLocation = card.dataset.location;
+          const cardCategory = card.dataset.category;
+          
+          const matchesSearch = title.includes(query);
+          const matchesLocation = !location || cardLocation.includes(location);
+          const matchesCategory = !category || cardCategory.includes(category);
+          const matchesActiveCategory = activeCategory === 'all' || cardCategory.includes(activeCategory);
+          
+          if (matchesSearch && matchesLocation && matchesCategory && matchesActiveCategory) {
+            card.style.display = 'block';
+            visibleCount++;
+          } else {
+            card.style.display = 'none';
+          }
+        });
+        
+        if (visibleCount === 0) {
+          emptyState.classList.remove('hidden');
+        } else {
+          emptyState.classList.add('hidden');
+        }
+      }
+      
+      searchInput.addEventListener('input', filterEvents);
+      locationSelect.addEventListener('change', filterEvents);
+      categorySelect.addEventListener('change', filterEvents);
+      clearFiltersBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        locationSelect.value = '';
+        categorySelect.value = '';
+        document.querySelector('.category-filter.active').classList.remove('active');
+        document.querySelector('.category-filter[data-category="all"]').classList.add('active');
+        filterEvents();
+      });
+      
+      categoryFilters.forEach(btn => {
+        btn.addEventListener('click', () => {
+          categoryFilters.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          filterEvents();
+        });
+      });
+    }
+
+    // Initialize
+    loadAllEvents();
+    loadTrendingEvents();
+
+    // Handle auth state changes
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        loginBtn.textContent = 'Dashboard';
+        loginBtn.href = 'dashboard.html';
+        signupBtn.textContent = 'Logout';
+        signupBtn.href = '#';
+        signupBtn.onclick = () => signOut(auth);
+      } else {
+        loginBtn.textContent = 'Login';
+        loginBtn.href = 'login.html';
+        signupBtn.textContent = 'Sign Up';
+        signupBtn.href = 'signup.html';
+        signupBtn.onclick = null;
+      }
+    });
+
+    // Make trackEventView available globally
+    window.trackEventView = trackEventView;
+  });
+</script>
+</body>
+</html>

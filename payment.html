@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complete Payment - M8 Ticketing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .payment-card {
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .payment-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    .loading-spinner {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="event.html?id=${eventId}" class="text-white hover:text-pink-400 text-sm flex items-center gap-1">
+      <i class="fas fa-arrow-left"></i> Back to Event
+    </a>
+  </header>
+
+  <div class="max-w-3xl mx-auto my-8 p-4">
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-12">
+      <div class="inline-block loading-spinner text-pink-500 text-4xl mb-4">
+        <i class="fas fa-circle-notch"></i>
+      </div>
+      <p class="text-gray-400">Loading payment details...</p>
+    </div>
+
+    <!-- Payment Container (hidden initially) -->
+    <div id="paymentContainer" class="hidden space-y-6">
+      <!-- Payment details will be inserted here -->
+    </div>
+
+    <!-- Error State (hidden initially) -->
+    <div id="errorState" class="hidden text-center py-12">
+      <div class="text-red-500 text-4xl mb-4">
+        <i class="fas fa-exclamation-triangle"></i>
+      </div>
+      <h3 class="text-xl font-semibold mb-2">Payment Error</h3>
+      <p id="errorMessage" class="text-gray-400 mb-4">We couldn't load your payment details.</p>
+      <button onclick="window.location.href='dashboard.html'" class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-full">
+        Return to Dashboard
+      </button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { 
+      getAuth, 
+      onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore, 
+      doc, 
+      getDoc, 
+      updateDoc,
+      runTransaction,
+      writeBatch,
+      increment
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    
+    // Initialize Firebase
+    const auth = getAuth();
+    const db = getFirestore();
+    
+    // Get order ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
+    
+    let orderData;
+    let eventData;
+    let paymentInitialized = false;
+    
+    async function loadOrder() {
+      try {
+        // Show loading state
+        document.getElementById('loadingState').classList.remove('hidden');
+        document.getElementById('paymentContainer').classList.add('hidden');
+        document.getElementById('errorState').classList.add('hidden');
+        
+        // Load order data
+        const orderDoc = await getDoc(doc(db, 'orders', orderId));
+        if (!orderDoc.exists()) {
+          throw new Error('Order not found');
+        }
+        
+        orderData = orderDoc.data();
+        
+        // Check if order is already paid
+        if (orderData.status === 'paid') {
+          window.location.href = `payment-success.html?orderId=${orderId}`;
+          return;
+        }
+        
+        // Load event data
+        const eventDoc = await getDoc(doc(db, 'events', orderData.eventId));
+        if (!eventDoc.exists()) {
+          throw new Error('Event not found');
+        }
+        
+        eventData = eventDoc.data();
+        
+        // Verify ticket availability
+        await verifyTicketAvailability();
+        
+        // Render payment details
+        renderPaymentDetails();
+        
+        // Hide loading state
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('paymentContainer').classList.remove('hidden');
+        
+      } catch (error) {
+        console.error('Error loading order:', error);
+        showError(error.message);
+      }
+    }
+    
+    async function verifyTicketAvailability() {
+      return runTransaction(db, async (transaction) => {
+        const eventRef = doc(db, 'events', orderData.eventId);
+        const eventSnap = await transaction.get(eventRef);
+        
+        if (!eventSnap.exists()) {
+          throw new Error('Event no longer exists');
+        }
+        
+        const currentEventData = eventSnap.data();
+        orderData.items.forEach(item => {
+          const ticket = currentEventData.tickets[item.ticketId];
+          if (ticket.remaining < item.quantity) {
+            throw new Error(`Only ${ticket.remaining} ${ticket.name} tickets remaining!`);
+          }
+        });
+      });
+    }
+    
+    function renderPaymentDetails() {
+      const container = document.getElementById('paymentContainer');
+      
+      container.innerHTML = `
+        <div class="payment-card bg-gray-800 p-6 rounded-lg">
+          <div class="flex items-center gap-3 mb-4">
+            <i class="fas fa-ticket-alt text-pink-500 text-xl"></i>
+            <h3 class="text-xl font-semibold">Order #${orderId.slice(0, 8)}</h3>
+          </div>
+          
+          <div class="space-y-3 mb-6">
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400">Event:</span>
+              <span class="font-medium">${eventData.name}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400">Date:</span>
+              <span>${new Date(eventData.datetime).toLocaleDateString()}</span>
+            </div>
+          </div>
+          
+          <div class="border-t border-gray-700 pt-4 mb-4">
+            <h4 class="font-semibold mb-3">Tickets</h4>
+            <div class="space-y-3">
+              ${orderData.items.map(item => `
+                <div class="flex justify-between">
+                  <span>${item.quantity}x ${item.name}</span>
+                  <span>₦${item.totalPrice.toLocaleString()}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          
+          <div class="border-t border-gray-700 pt-4 space-y-2">
+            <div class="flex justify-between text-gray-400">
+              <span>Subtotal:</span>
+              <span>₦${(orderData.totalAmount - orderData.totalFees).toLocaleString()}</span>
+            </div>
+            <div class="flex justify-between text-gray-400">
+              <span>Service Fees:</span>
+              <span>₦${orderData.totalFees.toLocaleString()}</span>
+            </div>
+            <div class="flex justify-between font-semibold text-lg mt-2 pt-2 border-t border-gray-700">
+              <span>Total Amount:</span>
+              <span class="text-pink-500">₦${orderData.totalAmount.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex flex-col gap-4">
+          <button id="payWithPaystack" class="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full font-semibold flex items-center justify-center gap-2">
+            <i class="fas fa-credit-card"></i>
+            <span>Pay with Paystack</span>
+          </button>
+          
+          <button id="cancelPayment" class="w-full bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-full font-semibold">
+            Cancel Payment
+          </button>
+        </div>
+        
+        <div class="text-center text-gray-500 text-sm mt-4">
+          <div class="flex items-center justify-center gap-2">
+            <i class="fas fa-lock"></i>
+            <span>Secure payment processed by Paystack</span>
+          </div>
+          <div class="flex items-center justify-center gap-2 mt-1">
+            <i class="fas fa-shield-alt"></i>
+            <span>Your payment details are encrypted</span>
+          </div>
+        </div>
+      `;
+      
+      // Add event listeners
+      document.getElementById('payWithPaystack').addEventListener('click', initiatePaystackPayment);
+      document.getElementById('cancelPayment').addEventListener('click', () => {
+        if (confirm('Are you sure you want to cancel this payment?')) {
+          window.location.href = `event.html?id=${orderData.eventId}`;
+        }
+      });
+    }
+    
+    function initiatePaystackPayment() {
+      if (paymentInitialized) return;
+      paymentInitialized = true;
+      
+      const user = auth.currentUser;
+      const paystackBtn = document.getElementById('payWithPaystack');
+      
+      // Disable button during processing
+      paystackBtn.disabled = true;
+      paystackBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+      
+      const handler = PaystackPop.setup({
+        key: 'YOUR_PAYSTACK_PUBLIC_KEY', // Replace with your actual key
+        email: user.email,
+        amount: orderData.totalAmount * 100, // Convert to kobo
+        ref: `M8TICKET-${Date.now()}-${orderId.slice(0, 4)}`,
+        metadata: {
+          orderId: orderId,
+          userId: user.uid,
+          eventId: orderData.eventId
+        },
+        callback: function(response) {
+          verifyPayment(response.reference);
+        },
+        onClose: function() {
+          if (!paymentInitialized) return;
+          paystackBtn.disabled = false;
+          paystackBtn.innerHTML = '<i class="fas fa-credit-card"></i> Pay with Paystack';
+          paymentInitialized = false;
+          alert('Payment window was closed. You can try again if needed.');
+        }
+      });
+      
+      handler.openIframe();
+    }
+    
+    async function verifyPayment(reference) {
+      try {
+        // Show processing state
+        document.getElementById('paymentContainer').classList.add('hidden');
+        document.getElementById('loadingState').classList.remove('hidden');
+        document.getElementById('loadingState').innerHTML = `
+          <div class="inline-block loading-spinner text-pink-500 text-4xl mb-4">
+            <i class="fas fa-circle-notch"></i>
+          </div>
+          <p class="text-gray-400">Verifying your payment...</p>
+        `;
+        
+        // In a production app, you should verify with your backend
+        // This is a simplified version for demo purposes
+        
+        // Update order status
+        const batch = writeBatch(db);
+        
+        // Update order
+        const orderRef = doc(db, 'orders', orderId);
+        batch.update(orderRef, {
+          status: 'paid',
+          paymentReference: reference,
+          paidAt: new Date(),
+          paymentMethod: 'paystack'
+        });
+        
+        // Update event ticket counts
+        const eventRef = doc(db, 'events', orderData.eventId);
+        orderData.items.forEach(item => {
+          const ticketPath = `tickets.${item.ticketId}`;
+          batch.update(eventRef, {
+            [`${ticketPath}.sold`]: increment(item.quantity),
+            [`${ticketPath}.remaining`]: increment(-item.quantity)
+          });
+        });
+        
+        await batch.commit();
+        
+        // Redirect to success page
+        window.location.href = `payment-success.html?orderId=${orderId}`;
+        
+      } catch (error) {
+        console.error('Payment verification failed:', error);
+        showError('Payment verification failed. Please contact support if the amount was deducted from your account.');
+        
+        // Reset payment button
+        const paystackBtn = document.getElementById('payWithPaystack');
+        if (paystackBtn) {
+          paystackBtn.disabled = false;
+          paystackBtn.innerHTML = '<i class="fas fa-credit-card"></i> Pay with Paystack';
+        }
+        paymentInitialized = false;
+      }
+    }
+    
+    function showError(message) {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('paymentContainer').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+      document.getElementById('errorMessage').textContent = message;
+    }
+    
+    // Initialize
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
+      } else {
+        loadOrder();
+      }
+    });
+  </script>
+</body>
+</html>

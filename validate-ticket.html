@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M8 - Ticket Validation</title>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .btn-primary {
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 15px rgba(236, 72, 153, 0.5);
+    }
+    .ticket-card {
+      background: linear-gradient(135deg, #1e1b3b, #252147);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    .ticket-status {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .qr-scanner {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    .qr-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(13, 12, 29, 0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .qr-scanner:hover .qr-overlay {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="p-6 flex justify-between items-center border-b border-gray-700">
+  <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+  <div class="flex items-center gap-4">
+    <a href="login.html" class="text-white hover:text-pink-400">Login</a>
+    <a href="signup.html" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-full font-semibold">Sign Up</a>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="max-w-4xl mx-auto px-4 py-12">
+  <div class="text-center mb-12">
+    <h1 class="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+      Ticket Validation
+    </h1>
+    <p class="text-xl text-gray-300 max-w-2xl mx-auto">
+      Verify event tickets quickly and securely
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- QR Scanner Section -->
+    <div class="bg-gray-800 rounded-xl p-6 shadow-lg">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+        <i class="fas fa-qrcode text-pink-500"></i> Scan QR Code
+      </h2>
+      <div class="qr-scanner border-2 border-dashed border-gray-600 rounded-lg p-8 text-center relative">
+        <i class="fas fa-qrcode text-6xl text-gray-500 mb-4"></i>
+        <p class="text-gray-400 mb-4">Point camera at QR code</p>
+        <button id="startScannerBtn" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-full font-semibold">
+          Start Scanner
+        </button>
+        <div class="qr-overlay">
+          <div id="qr-reader" class="w-full h-full"></div>
+          <button id="stopScannerBtn" class="btn-primary bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-semibold mt-4">
+            Stop Scanner
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Entry Section -->
+    <div class="bg-gray-800 rounded-xl p-6 shadow-lg">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+        <i class="fas fa-keyboard text-pink-500"></i> Manual Entry
+      </h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2">Ticket ID</label>
+          <input 
+            type="text" 
+            id="ticketIdInput" 
+            class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none" 
+            placeholder="Enter ticket ID"
+          >
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2">Event ID</label>
+          <input 
+            type="text" 
+            id="eventIdInput" 
+            class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none" 
+            placeholder="Enter event ID (optional)"
+          >
+        </div>
+        <button 
+          id="validateManualBtn"
+          class="btn-primary w-full bg-pink-600 hover:bg-pink-700 text-white py-3 rounded-lg font-semibold mt-4"
+        >
+          Validate Ticket
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Validation Results -->
+  <div id="validationResult" class="hidden bg-gray-800 rounded-xl p-6 shadow-lg mt-12">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-bold flex items-center gap-2">
+        <i class="fas fa-ticket-alt text-pink-500"></i> Validation Results
+      </h2>
+      <span id="validationStatus" class="ticket-status bg-gray-700">Pending</span>
+    </div>
+    
+    <div id="resultContent" class="space-y-6">
+      <!-- Will be populated after validation -->
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="border-t border-gray-700 py-12 mt-12">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div>
+        <a href="index.html" class="text-pink-500 font-bold text-2xl mb-4 inline-block">M8-Ticketing</a>
+        <p class="text-gray-400">Your Vibe. Your Ticket.</p>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-4">Company</h3>
+        <ul class="space-y-2">
+          <li><a href="#" class="text-gray-400 hover:text-white">About Us</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Careers</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-4">Support</h3>
+        <ul class="space-y-2">
+          <li><a href="#" class="text-gray-400 hover:text-white">Help Center</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Contact Us</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold mb-4">Legal</h3>
+        <ul class="space-y-2">
+          <li><a href="#" class="text-gray-400 hover:text-white">Privacy</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white">Terms</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-500">
+      &copy; 2024 M8-Ticketing. All rights reserved.
+    </div>
+  </div>
+</footer>
+
+<!-- Include QR scanner library -->
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<script>
+  // Firebase Configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+    authDomain: "m8-ticketting2.firebaseapp.com",
+    projectId: "m8-ticketting2",
+    storageBucket: "m8-ticketting2.appspot.com",
+    messagingSenderId: "832517378869",
+    appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+    measurementId: "G-NN9TMZY90N"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  // DOM Elements
+  const startScannerBtn = document.getElementById('startScannerBtn');
+  const stopScannerBtn = document.getElementById('stopScannerBtn');
+  const validateManualBtn = document.getElementById('validateManualBtn');
+  const ticketIdInput = document.getElementById('ticketIdInput');
+  const eventIdInput = document.getElementById('eventIdInput');
+  const validationResult = document.getElementById('validationResult');
+  const validationStatus = document.getElementById('validationStatus');
+  const resultContent = document.getElementById('resultContent');
+  
+  let html5QrCode;
+
+  // Initialize QR Scanner
+  function initQRScanner() {
+    html5QrCode = new Html5Qrcode("qr-reader");
+    
+    startScannerBtn.addEventListener('click', () => {
+      startScannerBtn.disabled = true;
+      document.querySelector('.qr-overlay').style.opacity = 1;
+      
+      const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+        stopScanner();
+        validateTicket(decodedText);
+      };
+      
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        qrCodeSuccessCallback,
+        (errorMessage) => {
+          // Handle scan error
+        }
+      ).catch((err) => {
+        console.error("Unable to start QR scanner:", err);
+        startScannerBtn.disabled = false;
+        document.querySelector('.qr-overlay').style.opacity = 0;
+      });
+    });
+    
+    stopScannerBtn.addEventListener('click', stopScanner);
+  }
+  
+  function stopScanner() {
+    if (html5QrCode) {
+      html5QrCode.stop().then(() => {
+        startScannerBtn.disabled = false;
+        document.querySelector('.qr-overlay').style.opacity = 0;
+      }).catch((err) => {
+        console.error("Error stopping scanner:", err);
+      });
+    }
+  }
+
+  // Validate Ticket Function
+  async function validateTicket(ticketId, eventId = null) {
+    validationResult.classList.remove('hidden');
+    validationStatus.textContent = "Validating...";
+    validationStatus.className = "ticket-status bg-yellow-600";
+    resultContent.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-3xl text-pink-500"></i><p class="mt-4">Validating ticket...</p></div>';
+    
+    try {
+      // First try to find the ticket directly
+      const ticketRef = db.collection('tickets').doc(ticketId);
+      const ticketDoc = await ticketRef.get();
+      
+      if (!ticketDoc.exists) {
+        throw new Error("Ticket not found");
+      }
+      
+      const ticketData = ticketDoc.data();
+      
+      // If event ID was provided, verify it matches
+      if (eventId && ticketData.eventId !== eventId) {
+        throw new Error("Ticket does not belong to this event");
+      }
+      
+      // Check if ticket is already used
+      if (ticketData.status === 'used') {
+        showValidationResult(ticketData, false, "This ticket has already been used");
+        return;
+      }
+      
+      // Check if event exists
+      const eventRef = db.collection('events').doc(ticketData.eventId);
+      const eventDoc = await eventRef.get();
+      
+      if (!eventDoc.exists) {
+        throw new Error("Event not found");
+      }
+      
+      const eventData = eventDoc.data();
+      
+      // Check if event is in the past
+      const eventDate = new Date(eventData.datetime);
+      if (eventDate < new Date()) {
+        showValidationResult(ticketData, false, "Event has already occurred");
+        return;
+      }
+      
+      // Mark ticket as used
+      await ticketRef.update({
+        status: 'used',
+        usedAt: new Date(),
+        validatedBy: auth.currentUser ? auth.currentUser.uid : 'anonymous-validator'
+      });
+      
+      // Update event's ticketsUsed count
+      await eventRef.update({
+        ticketsUsed: firebase.firestore.FieldValue.increment(1)
+      });
+      
+      showValidationResult(ticketData, true, "Ticket is valid", eventData);
+      
+    } catch (error) {
+      console.error("Validation error:", error);
+      showValidationError(error.message);
+    }
+  }
+  
+  function showValidationResult(ticketData, isValid, message, eventData = null) {
+    validationStatus.textContent = isValid ? "Valid" : "Invalid";
+    validationStatus.className = `ticket-status ${isValid ? "bg-green-600" : "bg-red-600"}`;
+    
+    let eventHtml = '';
+    if (eventData) {
+      const eventDate = new Date(eventData.datetime);
+      eventHtml = `
+        <div class="ticket-card p-6">
+          <div class="flex items-start gap-4 mb-4">
+            <img src="${eventData.image || 'https://via.placeholder.com/100?text=Event'}" 
+                 class="w-16 h-16 object-cover rounded-lg">
+            <div>
+              <h3 class="font-bold text-lg">${eventData.name}</h3>
+              <p class="text-gray-400 text-sm">
+                <i class="fas fa-calendar-day mr-1"></i>
+                ${eventDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}
+              </p>
+              <p class="text-gray-400 text-sm">
+                <i class="fas fa-map-marker-alt mr-1"></i>
+                ${eventData.location}
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    resultContent.innerHTML = `
+      <div class="space-y-4">
+        ${eventHtml}
+        
+        <div class="bg-gray-700/50 rounded-lg p-4">
+          <h3 class="font-semibold mb-2">Ticket Details</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-gray-400 text-sm">Ticket ID</p>
+              <p class="font-mono">${ticketData.id}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Type</p>
+              <p>${ticketData.ticketType || 'General Admission'}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Purchased</p>
+              <p>${new Date(ticketData.purchaseDate).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Status</p>
+              <p class="${isValid ? 'text-green-400' : 'text-red-400'} font-semibold">
+                ${isValid ? 'Valid' : 'Invalid'}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="text-center p-4 rounded-lg ${isValid ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}">
+          <i class="fas ${isValid ? 'fa-check-circle' : 'fa-times-circle'} text-2xl mb-2"></i>
+          <p>${message}</p>
+        </div>
+        
+        <button id="validateAnotherBtn" class="btn-primary w-full bg-pink-600 hover:bg-pink-700 text-white py-3 rounded-lg font-semibold">
+          Validate Another Ticket
+        </button>
+      </div>
+    `;
+    
+    document.getElementById('validateAnotherBtn').addEventListener('click', () => {
+      validationResult.classList.add('hidden');
+      ticketIdInput.value = '';
+      eventIdInput.value = '';
+    });
+  }
+  
+  function showValidationError(message) {
+    validationStatus.textContent = "Error";
+    validationStatus.className = "ticket-status bg-red-600";
+    
+    resultContent.innerHTML = `
+      <div class="text-center p-8">
+        <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-4"></i>
+        <h3 class="text-xl font-semibold mb-2">Validation Failed</h3>
+        <p class="text-gray-400 mb-6">${message}</p>
+        <button id="tryAgainBtn" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-full font-semibold">
+          Try Again
+        </button>
+      </div>
+    `;
+    
+    document.getElementById('tryAgainBtn').addEventListener('click', () => {
+      validationResult.classList.add('hidden');
+    });
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    initQRScanner();
+    
+    // Manual validation
+    validateManualBtn.addEventListener('click', () => {
+      const ticketId = ticketIdInput.value.trim();
+      const eventId = eventIdInput.value.trim();
+      
+      if (!ticketId) {
+        alert("Please enter a ticket ID");
+        return;
+      }
+      
+      validateTicket(ticketId, eventId || null);
+    });
+    
+    // Check auth state
+    auth.onAuthStateChanged((user) => {
+      const loginBtn = document.querySelector('header a[href="login.html"]');
+      const signupBtn = document.querySelector('header a[href="signup.html"]');
+      
+      if (user) {
+        loginBtn.textContent = 'Dashboard';
+        loginBtn.href = 'dashboard.html';
+        signupBtn.textContent = 'Logout';
+        signupBtn.href = '#';
+        signupBtn.addEventListener('click', () => auth.signOut());
+      } else {
+        loginBtn.textContent = 'Login';
+        loginBtn.href = 'login.html';
+        signupBtn.textContent = 'Sign Up';
+        signupBtn.href = 'signup.html';
+      }
+    });
+  });
+</script>
+</body>
+</html>

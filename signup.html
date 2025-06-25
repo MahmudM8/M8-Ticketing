@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up - M8 Ticketing</title>
+  <!-- Add the new Firebase SDKs -->
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      createUserWithEmailAndPassword, 
+      sendEmailVerification 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const analytics = getAnalytics(app);
+
+    // Make auth and verification functions available globally
+    window.auth = auth;
+    window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+    window.sendEmailVerification = sendEmailVerification;
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .verification-banner {
+      display: none;
+      background: rgba(236, 72, 153, 0.2);
+      border: 1px solid rgba(236, 72, 153, 0.5);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .loader {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #ec4899;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="index.html" class="text-white hover:text-pink-400 text-sm">← Back to Home</a>
+  </header>
+
+  <!-- Sign-Up Form -->
+  <div class="max-w-md mx-auto mt-12 bg-gray-800 p-8 rounded-lg shadow-lg">
+    <h2 class="text-3xl font-bold text-center text-pink-500">Create an Account</h2>
+
+    <!-- Verification Notice Banner (hidden by default) -->
+    <div id="verificationBanner" class="verification-banner">
+      <p class="text-pink-400">A verification email has been sent to <span id="userEmail" class="font-semibold"></span>.</p>
+      <p class="text-sm mt-2 text-gray-300">Please check your inbox and verify your email to access all features.</p>
+      <button id="resendButton" class="mt-2 text-pink-400 hover:text-pink-300 text-sm font-medium">
+        Didn't receive it? <span class="underline">Resend verification email</span>
+      </button>
+      <span id="resendSuccess" class="text-green-400 text-sm ml-2" style="display:none;">Sent!</span>
+    </div>
+
+    <form id="signUpForm" class="mt-6">
+      <div class="mb-4">
+        <input type="email" id="email" class="w-full p-3 bg-gray-700 rounded-lg text-white focus:outline-none" placeholder="Email Address" required>
+      </div>
+      <div class="mb-4">
+        <input type="password" id="password" class="w-full p-3 bg-gray-700 rounded-lg text-white focus:outline-none" placeholder="Password" required>
+      </div>
+      <div class="mb-6">
+        <input type="password" id="confirmPassword" class="w-full p-3 bg-gray-700 rounded-lg text-white focus:outline-none" placeholder="Confirm Password" required>
+      </div>
+      <button type="submit" id="submitButton" class="w-full p-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 focus:outline-none font-semibold">
+        Sign Up
+      </button>
+      <div id="loader" class="loader mt-4 mx-auto" style="display: none;"></div>
+    </form>
+
+    <p class="mt-4 text-center text-gray-400">Already have an account? <a href="login.html" class="text-pink-500 hover:text-pink-400">Login here</a></p>
+  </div>
+
+  <!-- Form Handling Script -->
+  <script>
+    document.getElementById('signUpForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      const submitButton = document.getElementById('submitButton');
+      const loader = document.getElementById('loader');
+
+      // Check if passwords match
+      if (password !== confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+      }
+
+      // Check password strength
+      if (password.length < 6) {
+        alert("Password should be at least 6 characters");
+        return;
+      }
+
+      // Show loading state
+      submitButton.disabled = true;
+      submitButton.classList.add('opacity-50');
+      loader.style.display = 'block';
+
+      try {
+        // Create user with Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // Send verification email
+        await sendEmailVerification(user);
+        
+        // Show verification banner
+        document.getElementById('verificationBanner').style.display = 'block';
+        document.getElementById('userEmail').textContent = email;
+        
+        // Hide form and show success message
+        document.getElementById('signUpForm').style.display = 'none';
+        
+        // Reset loading state
+        submitButton.disabled = false;
+        submitButton.classList.remove('opacity-50');
+        loader.style.display = 'none';
+        
+      } catch (error) {
+        // Reset loading state
+        submitButton.disabled = false;
+        submitButton.classList.remove('opacity-50');
+        loader.style.display = 'none';
+        
+        let errorMessage = "Sign up failed. ";
+        switch(error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage += "This email is already in use.";
+            break;
+          case 'auth/invalid-email':
+            errorMessage += "The email address is invalid.";
+            break;
+          case 'auth/weak-password':
+            errorMessage += "The password is too weak.";
+            break;
+          default:
+            errorMessage += error.message;
+        }
+        alert(errorMessage);
+      }
+    });
+
+    // Resend verification email handler
+    document.getElementById('resendButton').addEventListener('click', async () => {
+      const resendButton = document.getElementById('resendButton');
+      const resendSuccess = document.getElementById('resendSuccess');
+      const user = auth.currentUser;
+      
+      if (user) {
+        resendButton.disabled = true;
+        try {
+          await sendEmailVerification(user);
+          resendSuccess.style.display = 'inline';
+          setTimeout(() => {
+            resendSuccess.style.display = 'none';
+          }, 3000);
+        } catch (error) {
+          alert('Error resending verification email: ' + error.message);
+        } finally {
+          resendButton.disabled = false;
+        }
+      }
+    });
+  </script>
+</body>
+</html>

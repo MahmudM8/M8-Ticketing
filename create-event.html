@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Host Your Event - M8 Ticketing</title>
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      collection,
+      addDoc,
+      serverTimestamp,
+      doc,
+      getDoc,
+      updateDoc,
+      arrayUnion
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    import { 
+      getStorage,
+      ref,
+      uploadBytes,
+      getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    window.firebase = {
+      auth,
+      db,
+      storage,
+      functions: {
+        collection,
+        addDoc,
+        serverTimestamp,
+        ref,
+        uploadBytes,
+        getDownloadURL,
+        onAuthStateChanged,
+        doc,
+        getDoc,
+        updateDoc,
+        arrayUnion
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .image-preview {
+      height: 200px;
+      object-fit: cover;
+      display: none;
+    }
+    .ticket-type {
+      border: 1px solid #3f3f46;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      position: relative;
+    }
+    .remove-ticket {
+      color: #f43f5e;
+      cursor: pointer;
+    }
+    #imageUploadLabel {
+      transition: all 0.3s ease;
+    }
+    #imageUploadLabel:hover {
+      border-color: #f43f5e;
+    }
+    .fee-badge {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      background: #f43f5e;
+      color: white;
+      border-radius: 9999px;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+    .validation-error {
+      border-color: #f43f5e !important;
+    }
+    .error-message {
+      color: #f43f5e;
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      display: none;
+    }
+    .bulk-ticket-creation {
+      background: rgba(244, 63, 94, 0.1);
+      border-left: 3px solid #f43f5e;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 0 0.5rem 0.5rem 0;
+    }
+    .preview-card {
+      background: #1e1b4b;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-top: 1rem;
+      display: none;
+    }
+    .ticket-preview {
+      background: #0d0c1d;
+      border-radius: 0.25rem;
+      padding: 0.5rem;
+      margin: 0.25rem 0;
+    }
+    .success-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="dashboard.html" class="text-white hover:text-pink-400 text-sm flex items-center gap-1">
+      <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+  </header>
+
+  <!-- Create Event Form -->
+  <div class="max-w-3xl mx-auto my-8 bg-gray-800 p-8 rounded-lg shadow-lg">
+    <h2 class="text-3xl font-bold text-center text-pink-500 mb-2">🎉 Host Your Event</h2>
+    <p class="text-center text-gray-400 mb-6">Fill in the details below to create your event</p>
+    
+    <form id="createEventForm" class="space-y-6">
+      <!-- Platform Fee Notice -->
+      <div class="bg-pink-900/30 border border-pink-700 rounded-lg p-4">
+        <div class="flex items-start gap-3">
+          <i class="fas fa-info-circle text-pink-400 mt-1"></i>
+          <div>
+            <h4 class="font-semibold text-pink-300">Platform Fee Information</h4>
+            <p class="text-sm text-gray-300">
+              M8-Ticketing charges a platform fee on each ticket sold. The current fee structure is:
+              <span id="feeStructureText" class="font-medium">10% + ₦500 per ticket (min ₦200, max ₦2000)</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Event Basic Info -->
+      <div class="bg-gray-900 p-6 rounded-lg">
+        <h3 class="text-xl font-semibold mb-4 text-pink-500 flex items-center gap-2">
+          <i class="fas fa-info-circle"></i> Event Information
+        </h3>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-semibold mb-1">Event Name*</label>
+          <input id="eventName" type="text" class="w-full bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 focus:border-pink-500 focus:ring-1 focus:ring-pink-500" 
+                 placeholder="E.g. Backyard Bash" required />
+          <div class="error-message">Event name is required</div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">Date*</label>
+            <input id="eventDate" type="date" min="" class="w-full bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 focus:border-pink-500" required />
+            <div class="error-message">Event date is required</div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Time*</label>
+            <input id="eventTime" type="time" class="w-full bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 focus:border-pink-500" required />
+            <div class="error-message">Event time is required</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">Location*</label>
+            <input id="eventLocation" type="text" class="w-full bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 focus:border-pink-500" 
+                   placeholder="E.g. Lagos, Nigeria" required />
+            <div class="error-message">Event location is required</div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Category*</label>
+            <select id="eventCategory" class="w-full bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 focus:border-pink-500">
+              <option value="Concert">Concert</option>
+              <option value="Party">Party</option>
+              <option value="Art Exhibition">Art Exhibition</option>
+              <option value="Comedy Show">Comedy Show</option>
+              <option value="Festival">Festival</option>
+              <option value="Conference">Conference</option>
+              <option value="Workshop">Workshop</option>
+              <option value="Sports">Sports</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-semibold mb-1">Description*</label>
+          <textarea id="eventDescription" class="w-full bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 focus:border-pink-500" 
+                    rows="4" placeholder="Tell attendees what to expect at your event..." required></textarea>
+          <div class="error-message">Event description is required</div>
+        </div>
+      </div>
+
+      <!-- Event Image -->
+      <div class="bg-gray-900 p-6 rounded-lg">
+        <h3 class="text-xl font-semibold mb-4 text-pink-500 flex items-center gap-2">
+          <i class="fas fa-image"></i> Event Banner
+        </h3>
+        
+        <label id="imageUploadLabel" for="eventImage" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-700 border-dashed rounded-lg cursor-pointer bg-gray-800 hover:bg-gray-750">
+          <div class="flex flex-col items-center justify-center pt-5 pb-6">
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-500 mb-2"></i>
+            <p class="mb-2 text-sm text-gray-400">Click to upload banner image</p>
+            <p class="text-xs text-gray-500">PNG, JPG (Max. 5MB)</p>
+          </div>
+          <input id="eventImage" type="file" accept="image/*" class="hidden" required />
+        </label>
+        
+        <img id="imagePreview" class="image-preview w-full mt-4 rounded-lg" alt="Event banner preview" />
+      </div>
+
+      <!-- Ticket Types -->
+      <div class="bg-gray-900 p-6 rounded-lg">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-semibold text-pink-500 flex items-center gap-2">
+            <i class="fas fa-ticket-alt"></i> Ticket Types
+          </h3>
+          <div>
+            <button type="button" id="addTicketType" class="text-sm bg-pink-600 hover:bg-pink-700 px-3 py-1 rounded-full">
+              <i class="fas fa-plus mr-1"></i> Add Ticket
+            </button>
+            <button type="button" id="bulkAddTickets" class="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full ml-2">
+              <i class="fas fa-layer-group mr-1"></i> Bulk Add
+            </button>
+          </div>
+        </div>
+        
+        <!-- Bulk Ticket Creation UI -->
+        <div id="bulkTicketCreation" class="bulk-ticket-creation hidden">
+          <h4 class="font-semibold mb-2">Bulk Ticket Creation</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Base Name</label>
+              <input type="text" id="bulkTicketBaseName" class="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600" 
+                     placeholder="E.g. Tier" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Price Pattern</label>
+              <select id="bulkTicketPricePattern" class="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600">
+                <option value="increasing">Increasing (₦5000, ₦7500, ₦10000)</option>
+                <option value="fixed">Fixed Price</option>
+              </select>
+            </div>
+            <div id="fixedPriceContainer">
+              <label class="block text-sm font-semibold mb-1">Fixed Price</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2">₦</span>
+                <input type="number" id="bulkTicketFixedPrice" class="w-full bg-gray-700 px-3 py-2 pl-8 rounded border border-gray-600" 
+                       value="5000" placeholder="0.00" />
+              </div>
+            </div>
+            <div id="increasingPriceContainer" class="hidden">
+              <label class="block text-sm font-semibold mb-1">Start Price</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2">₦</span>
+                <input type="number" id="bulkTicketStartPrice" class="w-full bg-gray-700 px-3 py-2 pl-8 rounded border border-gray-600" 
+                       value="5000" placeholder="0.00" />
+              </div>
+            </div>
+            <div id="increasingPriceStepContainer" class="hidden">
+              <label class="block text-sm font-semibold mb-1">Price Step</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2">₦</span>
+                <input type="number" id="bulkTicketPriceStep" class="w-full bg-gray-700 px-3 py-2 pl-8 rounded border border-gray-600" 
+                       value="2500" placeholder="0.00" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Quantity Each</label>
+              <input type="number" id="bulkTicketQuantity" class="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600" 
+                     value="50" min="1" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Number of Tickets</label>
+              <input type="number" id="bulkTicketCount" class="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600" 
+                     value="3" min="1" max="10" />
+            </div>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button type="button" id="cancelBulkTickets" class="px-3 py-1 rounded border border-gray-600 text-sm">
+              Cancel
+            </button>
+            <button type="button" id="createBulkTickets" class="px-3 py-1 rounded bg-pink-600 text-white text-sm">
+              Create Tickets
+            </button>
+          </div>
+        </div>
+        
+        <div id="ticketTypesContainer">
+          <!-- Tickets will be added here dynamically -->
+        </div>
+      </div>
+
+      <!-- Event Settings -->
+      <div class="bg-gray-900 p-6 rounded-lg">
+        <h3 class="text-xl font-semibold mb-4 text-pink-500 flex items-center gap-2">
+          <i class="fas fa-cog"></i> Event Settings
+        </h3>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-semibold mb-1">Registration Deadline</label>
+          <input id="registrationDeadline" type="datetime-local" class="w-full bg-gray-800 px-4 py-2 rounded-lg border border-gray-700" />
+        </div>
+        
+        <div class="mb-4">
+          <label class="inline-flex items-center">
+            <input type="checkbox" id="requireApproval" class="rounded border-gray-600 text-pink-600" />
+            <span class="ml-2">Require approval for attendees</span>
+          </label>
+        </div>
+        
+        <div class="mb-4">
+          <label class="inline-flex items-center">
+            <input type="checkbox" id="allowCancellations" class="rounded border-gray-600 text-pink-600" checked />
+            <span class="ml-2">Allow ticket cancellations</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Event Preview -->
+      <div id="eventPreview" class="preview-card">
+        <h4 class="font-semibold text-pink-500 mb-2">Event Preview</h4>
+        <img id="previewEventImage" class="w-full rounded-lg mb-3" style="display: none;" />
+        <h3 id="previewEventName" class="text-xl font-bold"></h3>
+        <div id="previewEventDate" class="text-sm text-gray-400 mb-2"></div>
+        <div id="previewEventLocation" class="text-sm mb-3">
+          <i class="fas fa-map-marker-alt mr-1"></i>
+          <span></span>
+        </div>
+        <p id="previewEventDescription" class="text-sm mb-4"></p>
+        <h5 class="font-semibold mb-2">Tickets</h5>
+        <div id="previewTickets"></div>
+      </div>
+
+      <div class="flex justify-center gap-4 pt-4">
+        <button type="button" onclick="window.location.href='dashboard.html'" class="px-6 py-3 rounded-full font-semibold border border-gray-600 hover:bg-gray-700">
+          Cancel
+        </button>
+        <button type="submit" id="submitBtn" class="px-6 py-3 rounded-full font-semibold bg-pink-600 hover:bg-pink-700 text-white flex items-center gap-2">
+          <span id="submitText">Publish Event</span>
+          <i class="fas fa-rocket" id="submitIcon"></i>
+          <i class="fas fa-spinner fa-spin hidden" id="loadingIcon"></i>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { auth, db, storage, functions } = window.firebase;
+      const { 
+        onAuthStateChanged,
+        collection,
+        addDoc,
+        serverTimestamp,
+        ref,
+        uploadBytes,
+        getDownloadURL,
+        doc,
+        getDoc,
+        updateDoc,
+        arrayUnion
+      } = functions;
+
+      // Add unhandled promise rejection handler
+      window.addEventListener('unhandledrejection', event => {
+        console.error('Unhandled rejection:', event.reason);
+        alert('An unexpected error occurred: ' + event.reason.message);
+      });
+
+      // Load platform fee settings
+      let platformFeeSettings = {
+        percentage: 10,
+        fixed: 500,
+        min: 200,
+        max: 2000
+      };
+
+      try {
+        console.log('Loading platform fee settings...');
+        const feeDoc = await getDoc(doc(db, 'settings/fees'));
+        if (feeDoc.exists()) {
+          platformFeeSettings = feeDoc.data();
+          console.log('Loaded fee settings:', platformFeeSettings);
+        }
+        updateFeeStructureText();
+      } catch (error) {
+        console.error('Error loading fee settings:', error);
+      }
+
+      function updateFeeStructureText() {
+        const feeText = `${platformFeeSettings.percentage}% + ₦${platformFeeSettings.fixed.toLocaleString()} per ticket ` +
+                        `(min ₦${platformFeeSettings.min.toLocaleString()}, max ₦${platformFeeSettings.max.toLocaleString()})`;
+        document.getElementById('feeStructureText').textContent = feeText;
+      }
+
+      function calculatePlatformFee(ticketPrice) {
+        const percentageAmount = ticketPrice * (platformFeeSettings.percentage / 100);
+        let fee = percentageAmount + platformFeeSettings.fixed;
+        fee = Math.max(fee, platformFeeSettings.min);
+        fee = Math.min(fee, platformFeeSettings.max);
+        return Math.round(fee);
+      }
+
+      function updateFeeBadge(ticketElement, price) {
+        const fee = calculatePlatformFee(price);
+        const badge = ticketElement.querySelector('.fee-badge');
+        if (badge) {
+          badge.textContent = `Fee: ₦${fee.toLocaleString()}`;
+        }
+      }
+
+      function validateField(input, condition, errorMessage) {
+        const errorElement = input.nextElementSibling;
+        if (errorElement && errorElement.classList.contains('error-message')) {
+          if (!condition) {
+            input.classList.add('validation-error');
+            errorElement.textContent = errorMessage;
+            errorElement.style.display = 'block';
+            return false;
+          } else {
+            input.classList.remove('validation-error');
+            errorElement.style.display = 'none';
+            return true;
+          }
+        }
+        return condition;
+      }
+
+      // Set minimum date to today
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('eventDate').min = today;
+
+      // Image preview functionality
+      const imageUpload = document.getElementById('eventImage');
+      const imagePreview = document.getElementById('imagePreview');
+      const imageUploadLabel = document.getElementById('imageUploadLabel');
+      
+      imageUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          if (file.size > 5 * 1024 * 1024) {
+            alert('Image size should be less than 5MB');
+            return;
+          }
+          
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            imagePreview.src = event.target.result;
+            imagePreview.style.display = 'block';
+            imageUploadLabel.style.display = 'none';
+            updatePreview();
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      // Ticket type management
+      const ticketTypesContainer = document.getElementById('ticketTypesContainer');
+      const addTicketTypeBtn = document.getElementById('addTicketType');
+      
+      function createNewTicketElement() {
+        const newTicket = document.createElement('div');
+        newTicket.className = 'ticket-type bg-gray-800 rounded-lg p-4 mt-3 relative';
+        newTicket.innerHTML = `
+          <div class="fee-badge">Fee: ₦700</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Name*</label>
+              <input type="text" name="ticketName" class="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600" 
+                     placeholder="E.g. VIP Access" required />
+              <div class="error-message">Ticket name is required</div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Price*</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2">₦</span>
+                <input type="number" name="ticketPrice" min="0" class="w-full bg-gray-700 px-3 py-2 pl-8 rounded border border-gray-600 ticket-price-input" 
+                       value="5000" placeholder="0.00" required />
+                <div class="error-message">Valid price is required</div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Quantity*</label>
+              <input type="number" name="ticketQuantity" min="1" class="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600" 
+                     placeholder="50" required />
+              <div class="error-message">Quantity must be at least 1</div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="block text-sm font-semibold mb-1">Description</label>
+            <textarea name="ticketDescription" class="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600" 
+                      rows="2" placeholder="What's included in this ticket?"></textarea>
+          </div>
+          <div class="flex justify-between items-center">
+            <div>
+              <label class="inline-flex items-center">
+                <input type="checkbox" name="ticketIsLimited" class="rounded border-gray-600 text-pink-600" checked />
+                <span class="ml-2 text-sm">Limited quantity</span>
+              </label>
+            </div>
+            <button type="button" class="remove-ticket text-sm text-gray-400 hover:text-pink-500">
+              <i class="fas fa-trash mr-1"></i> Remove
+            </button>
+          </div>
+        `;
+        
+        // Add event listeners to new ticket
+        const priceInput = newTicket.querySelector('.ticket-price-input');
+        priceInput.addEventListener('input', () => {
+          const price = parseFloat(priceInput.value) || 0;
+          updateFeeBadge(newTicket, price);
+          updatePreview();
+        });
+        
+        // Add validation to fields
+        newTicket.querySelector('[name="ticketName"]').addEventListener('blur', function() {
+          validateField(this, this.value.trim() !== '', 'Ticket name is required');
+        });
+        
+        newTicket.querySelector('[name="ticketPrice"]').addEventListener('blur', function() {
+          validateField(this, !isNaN(parseFloat(this.value)) && parseFloat(this.value) >= 0, 'Valid price is required');
+        });
+        
+        newTicket.querySelector('[name="ticketQuantity"]').addEventListener('blur', function() {
+          validateField(this, !isNaN(parseInt(this.value)) && parseInt(this.value) > 0, 'Quantity must be at least 1');
+        });
+        
+        // Initial fee calculation
+        updateFeeBadge(newTicket, parseFloat(priceInput.value) || 0);
+        
+        // Add event listener to new remove button
+        newTicket.querySelector('.remove-ticket').addEventListener('click', () => {
+          if (ticketTypesContainer.children.length > 1) {
+            ticketTypesContainer.removeChild(newTicket);
+            updatePreview();
+          } else {
+            alert('You need at least one ticket type for your event.');
+          }
+        });
+        
+        return newTicket;
+      }
+      
+      // Bulk Ticket Creation
+      const bulkAddTicketsBtn = document.getElementById('bulkAddTickets');
+      const bulkTicketCreation = document.getElementById('bulkTicketCreation');
+      const bulkTicketPricePattern = document.getElementById('bulkTicketPricePattern');
+      
+      bulkAddTicketsBtn.addEventListener('click', () => {
+        bulkTicketCreation.classList.toggle('hidden');
+      });
+      
+      document.getElementById('cancelBulkTickets').addEventListener('click', () => {
+        bulkTicketCreation.classList.add('hidden');
+      });
+      
+      bulkTicketPricePattern.addEventListener('change', function() {
+        if (this.value === 'fixed') {
+          document.getElementById('fixedPriceContainer').classList.remove('hidden');
+          document.getElementById('increasingPriceContainer').classList.add('hidden');
+          document.getElementById('increasingPriceStepContainer').classList.add('hidden');
+        } else {
+          document.getElementById('fixedPriceContainer').classList.add('hidden');
+          document.getElementById('increasingPriceContainer').classList.remove('hidden');
+          document.getElementById('increasingPriceStepContainer').classList.remove('hidden');
+        }
+      });
+      
+      document.getElementById('createBulkTickets').addEventListener('click', function() {
+        const baseName = document.getElementById('bulkTicketBaseName').value.trim() || 'Ticket';
+        const pricePattern = document.getElementById('bulkTicketPricePattern').value;
+        const quantity = parseInt(document.getElementById('bulkTicketQuantity').value) || 50;
+        const count = parseInt(document.getElementById('bulkTicketCount').value) || 3;
+        
+        if (count > 10) {
+          alert('Maximum 10 tickets can be created at once');
+          return;
+        }
+        
+        for (let i = 1; i <= count; i++) {
+          const newTicket = createNewTicketElement();
+          const nameInput = newTicket.querySelector('[name="ticketName"]');
+          const priceInput = newTicket.querySelector('[name="ticketPrice"]');
+          const quantityInput = newTicket.querySelector('[name="ticketQuantity"]');
+          
+          nameInput.value = `${baseName} ${i}`;
+          quantityInput.value = quantity;
+          
+          if (pricePattern === 'fixed') {
+            const fixedPrice = parseFloat(document.getElementById('bulkTicketFixedPrice').value) || 5000;
+            priceInput.value = fixedPrice;
+          } else {
+            const startPrice = parseFloat(document.getElementById('bulkTicketStartPrice').value) || 5000;
+            const step = parseFloat(document.getElementById('bulkTicketPriceStep').value) || 2500;
+            priceInput.value = startPrice + (step * (i - 1));
+          }
+          
+          // Trigger fee calculation
+          updateFeeBadge(newTicket, parseFloat(priceInput.value));
+          ticketTypesContainer.appendChild(newTicket);
+        }
+        
+        bulkTicketCreation.classList.add('hidden');
+        updatePreview();
+      });
+      
+      // Event Preview Functionality
+      function updatePreview() {
+        const previewCard = document.getElementById('eventPreview');
+        if (!previewCard) return;
+        
+        const eventName = document.getElementById('eventName').value || 'Event Name';
+        const eventDate = document.getElementById('eventDate').value || '2023-01-01';
+        const eventTime = document.getElementById('eventTime').value || '19:00';
+        const eventLocation = document.getElementById('eventLocation').value || 'Location';
+        const eventDescription = document.getElementById('eventDescription').value || 'Event description goes here';
+        
+        // Format date
+        const dateObj = new Date(`${eventDate}T${eventTime}`);
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        const formattedDate = dateObj.toLocaleDateString('en-US', options);
+        
+        // Update preview
+        previewCard.querySelector('#previewEventName').textContent = eventName;
+        previewCard.querySelector('#previewEventDate').textContent = formattedDate;
+        previewCard.querySelector('#previewEventLocation span').textContent = eventLocation;
+        previewCard.querySelector('#previewEventDescription').textContent = eventDescription;
+        
+        // Update image preview if available
+        if (imagePreview.style.display !== 'none') {
+          previewCard.querySelector('#previewEventImage').src = imagePreview.src;
+          previewCard.querySelector('#previewEventImage').style.display = 'block';
+        } else {
+          previewCard.querySelector('#previewEventImage').style.display = 'none';
+        }
+        
+        // Update tickets preview
+        const ticketsPreview = previewCard.querySelector('#previewTickets');
+        ticketsPreview.innerHTML = '';
+        
+        document.querySelectorAll('.ticket-type').forEach(ticket => {
+          const name = ticket.querySelector('[name="ticketName"]').value || 'Ticket';
+          const price = parseFloat(ticket.querySelector('[name="ticketPrice"]').value) || 0;
+          const quantity = parseInt(ticket.querySelector('[name="ticketQuantity"]').value) || 0;
+          
+          const ticketElement = document.createElement('div');
+          ticketElement.className = 'ticket-preview';
+          ticketElement.innerHTML = `
+            <div class="flex justify-between">
+              <span>${name}</span>
+              <span class="font-semibold">₦${price.toLocaleString()}</span>
+            </div>
+            <div class="text-xs text-gray-400">${quantity} available</div>
+          `;
+          ticketsPreview.appendChild(ticketElement);
+        });
+        
+        // Show preview if at least name is filled
+        if (document.getElementById('eventName').value.trim() !== '') {
+          previewCard.style.display = 'block';
+        } else {
+          previewCard.style.display = 'none';
+        }
+      }
+      
+      // Add event listeners to form fields for real-time validation and preview
+      document.getElementById('eventName').addEventListener('input', updatePreview);
+      document.getElementById('eventDate').addEventListener('change', updatePreview);
+      document.getElementById('eventTime').addEventListener('change', updatePreview);
+      document.getElementById('eventLocation').addEventListener('input', updatePreview);
+      document.getElementById('eventDescription').addEventListener('input', updatePreview);
+      
+      // Add initial ticket
+      const initialTicket = createNewTicketElement();
+      ticketTypesContainer.appendChild(initialTicket);
+      
+      // Add ticket button
+      addTicketTypeBtn.addEventListener('click', () => {
+        const newTicket = createNewTicketElement();
+        ticketTypesContainer.appendChild(newTicket);
+        updatePreview();
+      });
+      
+      // Form submission
+      const createEventForm = document.getElementById('createEventForm');
+      const submitBtn = document.getElementById('submitBtn');
+      const submitText = document.getElementById('submitText');
+      const submitIcon = document.getElementById('submitIcon');
+      const loadingIcon = document.getElementById('loadingIcon');
+      
+      createEventForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        console.log('Form submission started');
+        
+        // Check if user is logged in
+        const user = auth.currentUser;
+        if (!user) {
+          alert('You need to be logged in to create an event.');
+          window.location.href = 'login.html';
+          return;
+        }
+        console.log('User authenticated:', user.email);
+
+        // Show loading state
+        submitText.textContent = 'Publishing...';
+        submitIcon.classList.add('hidden');
+        loadingIcon.classList.remove('hidden');
+        submitBtn.disabled = true;
+
+        try {
+          console.log('Starting event creation process');
+          
+          // Validate all required fields
+          let isValid = true;
+          
+          // Validate main form fields
+          const requiredFields = [
+            { id: 'eventName', message: 'Event name is required' },
+            { id: 'eventDate', message: 'Event date is required' },
+            { id: 'eventTime', message: 'Event time is required' },
+            { id: 'eventLocation', message: 'Event location is required' },
+            { id: 'eventDescription', message: 'Event description is required' }
+          ];
+          
+          requiredFields.forEach(field => {
+            const element = document.getElementById(field.id);
+            if (!element.value.trim()) {
+              element.classList.add('validation-error');
+              const errorElement = element.nextElementSibling;
+              if (errorElement && errorElement.classList.contains('error-message')) {
+                errorElement.textContent = field.message;
+                errorElement.style.display = 'block';
+              }
+              isValid = false;
+            }
+          });
+          
+          // Validate image
+          const eventImageFile = document.getElementById('eventImage').files[0];
+          if (!eventImageFile) {
+            alert('Please upload an event banner image');
+            isValid = false;
+          }
+          
+          // Validate tickets
+          const ticketElements = document.querySelectorAll('.ticket-type');
+          if (ticketElements.length === 0) {
+            alert('Please add at least one ticket type');
+            isValid = false;
+          }
+          
+          ticketElements.forEach(ticket => {
+            const name = ticket.querySelector('[name="ticketName"]');
+            const price = ticket.querySelector('[name="ticketPrice"]');
+            const quantity = ticket.querySelector('[name="ticketQuantity"]');
+            
+            if (!name.value.trim()) {
+              name.classList.add('validation-error');
+              isValid = false;
+            }
+            
+            if (!price.value || isNaN(parseFloat(price.value))) {
+              price.classList.add('validation-error');
+              isValid = false;
+            }
+            
+            if (!quantity.value || isNaN(parseInt(quantity.value)) || parseInt(quantity.value) <= 0) {
+              quantity.classList.add('validation-error');
+              isValid = false;
+            }
+          });
+          
+          if (!isValid) {
+            throw new Error('Please fix all validation errors before submitting');
+          }
+
+          console.log('Form validation passed');
+          
+          // Get form values
+          const eventName = document.getElementById('eventName').value;
+          const eventDate = document.getElementById('eventDate').value;
+          const eventTime = document.getElementById('eventTime').value;
+          const eventLocation = document.getElementById('eventLocation').value;
+          const eventCategory = document.getElementById('eventCategory').value;
+          const eventDescription = document.getElementById('eventDescription').value;
+          const registrationDeadline = document.getElementById('registrationDeadline').value;
+          const requireApproval = document.getElementById('requireApproval').checked;
+          const allowCancellations = document.getElementById('allowCancellations').checked;
+          
+          console.log('Processing ticket data');
+          // Process ticket data
+          const ticketTypes = [];
+          document.querySelectorAll('.ticket-type').forEach(ticketEl => {
+            const name = ticketEl.querySelector('[name="ticketName"]').value;
+            const price = parseFloat(ticketEl.querySelector('[name="ticketPrice"]').value);
+            const quantity = parseInt(ticketEl.querySelector('[name="ticketQuantity"]').value);
+            const description = ticketEl.querySelector('[name="ticketDescription"]').value || '';
+            const isLimited = ticketEl.querySelector('[name="ticketIsLimited"]').checked;
+            
+            ticketTypes.push({
+              name,
+              price,
+              quantity,
+              description,
+              isLimited,
+              sold: 0,
+              remaining: quantity,
+              feePerTicket: calculatePlatformFee(price)
+            });
+          });
+
+          console.log('Uploading image to Firebase Storage');
+          // Upload image to Firebase Storage
+          const storageRef = ref(storage, `event-banners/${user.uid}/${Date.now()}-${eventImageFile.name}`);
+          const snapshot = await uploadBytes(storageRef, eventImageFile);
+          const imageUrl = await getDownloadURL(snapshot.ref);
+          console.log('Image uploaded successfully:', imageUrl);
+
+          console.log('Preparing event data');
+          // Prepare event data
+          const eventData = {
+            name: eventName,
+            date: eventDate,
+            time: eventTime,
+            datetime: new Date(`${eventDate}T${eventTime}`).toISOString(),
+            location: eventLocation,
+            category: eventCategory,
+            description: eventDescription,
+            image: imageUrl,
+            tickets: ticketTypes,
+            registrationDeadline: registrationDeadline || null,
+            requireApproval,
+            allowCancellations,
+            status: 'active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            userId: user.uid,
+            organizer: {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || ''
+            },
+            platformFeeSettings: platformFeeSettings,
+            stats: {
+              views: 0,
+              favorites: 0,
+              ticketsSold: 0,
+              revenue: 0
+            }
+          };
+
+          console.log('Saving to Firestore');
+          // Save to Firestore
+          const docRef = await addDoc(collection(db, 'events'), eventData);
+          console.log('Event created with ID:', docRef.id);
+
+          console.log('Updating user document');
+          // Update user's events list
+          try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              events: arrayUnion(docRef.id),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+            console.log('User document updated');
+          } catch (userError) {
+            console.warn('Could not update user document:', userError);
+          }
+
+          console.log('Showing success modal');
+          // Success - show confirmation and redirect
+          const successModal = document.createElement('div');
+          successModal.className = 'success-modal';
+          successModal.innerHTML = `
+            <div class="bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4">
+              <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i class="fas fa-check text-white text-2xl"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-white mb-2">Event Published!</h3>
+                <p class="text-gray-300">Your event has been successfully created.</p>
+              </div>
+              <div class="flex justify-center gap-4">
+                <button id="viewEventBtn" class="px-6 py-2 rounded-full bg-pink-600 hover:bg-pink-700 text-white">
+                  View Event
+                </button>
+                <button id="goToDashboardBtn" class="px-6 py-2 rounded-full border border-gray-600 hover:bg-gray-700 text-white">
+                  Dashboard
+                </button>
+              </div>
+            </div>
+          `;
+          
+          document.body.appendChild(successModal);
+          
+          // Add event listeners to modal buttons
+          document.getElementById('viewEventBtn').addEventListener('click', () => {
+            window.location.href = `event.html?id=${docRef.id}`;
+          });
+          
+          document.getElementById('goToDashboardBtn').addEventListener('click', () => {
+            window.location.href = 'dashboard.html';
+          });
+
+        } catch (error) {
+          console.error('Error creating event:', error);
+          
+          // Reset button state
+          submitText.textContent = 'Publish Event';
+          submitIcon.classList.remove('hidden');
+          loadingIcon.classList.add('hidden');
+          submitBtn.disabled = false;
+          
+          // Show error message
+          alert(`Error: ${error.message || 'Failed to create event. Please try again.'}`);
+        }
+      });
+      
+      // Check auth state
+      onAuthStateChanged(auth, (user) => {
+        if (!user) {
+          window.location.href = 'login.html';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

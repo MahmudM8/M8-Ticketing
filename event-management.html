@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Event - M8 Ticketing</title>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged,
+      signOut 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      collection,
+      query,
+      where,
+      orderBy,
+      onSnapshot,
+      doc,
+      getDoc,
+      updateDoc,
+      deleteDoc,
+      getDocs,
+      writeBatch
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebase = {
+      auth,
+      db,
+      functions: {
+        collection,
+        query,
+        where,
+        orderBy,
+        onSnapshot,
+        doc,
+        getDoc,
+        updateDoc,
+        deleteDoc,
+        getDocs,
+        writeBatch,
+        onAuthStateChanged,
+        signOut
+      }
+    };
+  </script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- QR Code Library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .tabs button.active {
+      border-bottom: 2px solid #ec4899;
+      color: #ec4899;
+    }
+    .attendee-row:hover {
+      background-color: #1f2937;
+    }
+    .checkin-btn {
+      transition: all 0.2s;
+    }
+    .checkin-btn:active {
+      transform: scale(0.95);
+    }
+    .loader {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #ec4899;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .stats-card {
+      transition: transform 0.3s ease;
+    }
+    .stats-card:hover {
+      transform: translateY(-5px);
+    }
+    #qrCodeCanvas {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <div class="flex items-center gap-4">
+      <span id="userEmail" class="text-gray-300 hidden md:block"></span>
+      <button id="logoutBtn" class="flex items-center gap-2 text-white hover:text-pink-400 text-sm">
+        <i class="fas fa-sign-out-alt"></i> Log out
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Back to Dashboard -->
+    <a href="dashboard.html" class="inline-flex items-center text-gray-400 hover:text-pink-500 mb-6">
+      <i class="fas fa-arrow-left mr-2"></i> Back to Dashboard
+    </a>
+
+    <!-- Event Header -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+      <div>
+        <h1 id="eventTitle" class="text-3xl font-bold mb-2">Loading Event...</h1>
+        <div class="flex items-center gap-2 text-gray-400">
+          <span id="eventDate"></span>
+          <span id="eventLocation"></span>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-4 md:mt-0">
+        <a id="editEventBtn" href="#" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
+          <i class="fas fa-edit mr-2"></i> Edit
+        </a>
+        <a id="viewPublicBtn" target="_blank" href="#" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg">
+          <i class="fas fa-eye mr-2"></i> View Public Page
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="stats-card bg-gray-800 p-4 rounded-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-gray-400 text-sm">Total Tickets</p>
+            <h3 class="text-2xl font-bold" id="totalTickets">0</h3>
+          </div>
+          <i class="fas fa-ticket-alt text-pink-500 text-xl"></i>
+        </div>
+      </div>
+      <div class="stats-card bg-gray-800 p-4 rounded-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-gray-400 text-sm">Tickets Reserved</p>
+            <h3 class="text-2xl font-bold" id="reservedTickets">0</h3>
+          </div>
+          <i class="fas fa-users text-pink-500 text-xl"></i>
+        </div>
+      </div>
+      <div class="stats-card bg-gray-800 p-4 rounded-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-gray-400 text-sm">Checked In</p>
+            <h3 class="text-2xl font-bold" id="checkedInTickets">0</h3>
+          </div>
+          <i class="fas fa-check-circle text-pink-500 text-xl"></i>
+        </div>
+      </div>
+      <div class="stats-card bg-gray-800 p-4 rounded-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-gray-400 text-sm">Revenue</p>
+            <h3 class="text-2xl font-bold" id="totalRevenue">₦0</h3>
+          </div>
+          <i class="fas fa-money-bill-wave text-pink-500 text-xl"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-700 mb-6">
+      <div class="flex space-x-8">
+        <button class="tabs py-3 px-1 text-sm font-medium active" data-tab="overview">
+          <i class="fas fa-chart-pie mr-2"></i> Overview
+        </button>
+        <button class="tabs py-3 px-1 text-sm font-medium" data-tab="attendees">
+          <i class="fas fa-users mr-2"></i> Attendees
+        </button>
+        <button class="tabs py-3 px-1 text-sm font-medium" data-tab="checkin">
+          <i class="fas fa-qrcode mr-2"></i> Check-In
+        </button>
+        <button class="tabs py-3 px-1 text-sm font-medium" data-tab="settings">
+          <i class="fas fa-cog mr-2"></i> Settings
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab Contents -->
+    <div>
+      <!-- Overview Tab -->
+      <div id="overviewTab" class="tab-content active">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Event Details Card -->
+          <div class="bg-gray-800 rounded-lg p-6 lg:col-span-2">
+            <h3 class="text-xl font-semibold mb-4">Event Details</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <p class="text-gray-400 text-sm">Event Type</p>
+                <p id="eventType" class="font-medium">Free</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-sm">Status</p>
+                <p id="eventStatus" class="font-medium">Published</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-sm">Start Time</p>
+                <p id="eventStartTime" class="font-medium">Loading...</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-sm">End Time</p>
+                <p id="eventEndTime" class="font-medium">Loading...</p>
+              </div>
+            </div>
+            <div class="mb-6">
+              <p class="text-gray-400 text-sm mb-2">Description</p>
+              <p id="eventDescription" class="text-gray-300">Loading description...</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm mb-2">Organizer</p>
+              <p id="eventOrganizer" class="font-medium">Loading...</p>
+              <p id="eventContact" class="text-gray-300 text-sm">Loading contact info...</p>
+            </div>
+          </div>
+
+          <!-- Quick Actions Card -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h3 class="text-xl font-semibold mb-4">Quick Actions</h3>
+            <div class="space-y-3">
+              <button id="shareEventBtn" class="w-full flex items-center justify-between bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg">
+                <span><i class="fas fa-share-alt mr-2"></i> Share Event</span>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+              </button>
+              <button id="downloadAttendeesBtn" class="w-full flex items-center justify-between bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg">
+                <span><i class="fas fa-file-csv mr-2"></i> Export Attendees</span>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+              </button>
+              <button id="sendRemindersBtn" class="w-full flex items-center justify-between bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg">
+                <span><i class="fas fa-envelope mr-2"></i> Send Reminders</span>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+              </button>
+              <button id="viewAnalyticsBtn" class="w-full flex items-center justify-between bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg">
+                <span><i class="fas fa-chart-line mr-2"></i> View Analytics</span>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attendees Tab -->
+      <div id="attendeesTab" class="tab-content">
+        <div class="bg-gray-800 rounded-lg p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-semibold">Attendee List</h3>
+            <div class="flex gap-2">
+              <input type="text" id="attendeeSearch" placeholder="Search attendees..." class="bg-gray-700 text-white px-4 py-2 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none">
+              <button id="refreshAttendeesBtn" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Attendee Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-gray-700 text-left text-gray-400">
+                  <th class="pb-3">Name</th>
+                  <th class="pb-3">Email</th>
+                  <th class="pb-3">Tickets</th>
+                  <th class="pb-3">Status</th>
+                  <th class="pb-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="attendeeList">
+                <!-- Attendees will be loaded here -->
+                <tr>
+                  <td colspan="5" class="py-8 text-center text-gray-500">
+                    <div class="loader mx-auto"></div>
+                    <p class="mt-2">Loading attendees...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Check-In Tab -->
+      <div id="checkinTab" class="tab-content">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- QR Code Section -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h3 class="text-xl font-semibold mb-4">Event QR Code</h3>
+            <p class="text-gray-400 text-sm mb-4">Scan this code to check in attendees</p>
+            <div class="flex justify-center mb-4">
+              <canvas id="qrCodeCanvas"></canvas>
+            </div>
+            <button id="downloadQRBtn" class="w-full bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg">
+              <i class="fas fa-download mr-2"></i> Download QR Code
+            </button>
+          </div>
+
+          <!-- Manual Check-In Section -->
+          <div class="bg-gray-800 rounded-lg p-6 lg:col-span-2">
+            <h3 class="text-xl font-semibold mb-4">Manual Check-In</h3>
+            <div class="mb-6">
+              <label class="block text-sm font-semibold mb-2">Search Attendee</label>
+              <div class="relative">
+                <input type="text" id="checkinSearch" placeholder="Enter name, email or ticket ID" class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-pink-500 focus:outline-none">
+                <button id="checkinSearchBtn" class="absolute right-3 top-3 text-gray-400 hover:text-white">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Check-In Results -->
+            <div id="checkinResults" class="hidden">
+              <div class="border-t border-gray-700 pt-4">
+                <h4 class="font-medium mb-2">Attendee Found</h4>
+                <div class="flex justify-between items-center bg-gray-700 p-3 rounded-lg mb-4">
+                  <div>
+                    <p class="font-medium" id="checkinName">John Doe</p>
+                    <p class="text-sm text-gray-400" id="checkinEmail">john@example.com</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-sm" id="checkinTicketType">General Admission</p>
+                    <p class="text-xs text-gray-400" id="checkinTicketId">ID: ABC123</p>
+                  </div>
+                </div>
+                <button id="checkinConfirmBtn" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-medium">
+                  <i class="fas fa-check-circle mr-2"></i> Check In
+                </button>
+              </div>
+            </div>
+
+            <!-- Recent Check-Ins -->
+            <div class="mt-8">
+              <h4 class="font-medium mb-3">Recent Check-Ins</h4>
+              <div class="space-y-2" id="recentCheckins">
+                <div class="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
+                  <div class="flex items-center">
+                    <div class="bg-green-500 rounded-full w-2 h-2 mr-3"></div>
+                    <div>
+                      <p class="text-sm font-medium">Jane Smith</p>
+                      <p class="text-xs text-gray-400">2 minutes ago</p>
+                    </div>
+                  </div>
+                  <span class="text-xs bg-gray-600 px-2 py-1 rounded">General</span>
+                </div>
+                <div class="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
+                  <div class="flex items-center">
+                    <div class="bg-green-500 rounded-full w-2 h-2 mr-3"></div>
+                    <div>
+                      <p class="text-sm font-medium">Mike Johnson</p>
+                      <p class="text-xs text-gray-400">5 minutes ago</p>
+                    </div>
+                  </div>
+                  <span class="text-xs bg-gray-600 px-2 py-1 rounded">VIP</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="settingsTab" class="tab-content">
+        <div class="bg-gray-800 rounded-lg p-6">
+          <h3 class="text-xl font-semibold mb-6">Event Settings</h3>
+          
+          <!-- Danger Zone -->
+          <div class="border border-red-500/30 rounded-lg p-5">
+            <div class="flex justify-between items-center mb-4">
+              <div>
+                <h4 class="font-medium text-red-500">Danger Zone</h4>
+                <p class="text-sm text-gray-400">These actions are irreversible</p>
+              </div>
+            </div>
+            
+            <div class="space-y-4">
+              <div class="flex justify-between items-center">
+                <div>
+                  <p class="font-medium">Cancel Event</p>
+                  <p class="text-sm text-gray-400">Stop ticket sales and notify attendees</p>
+                </div>
+                <button id="cancelEventBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm">
+                  Cancel Event
+                </button>
+              </div>
+              
+              <div class="flex justify-between items-center">
+                <div>
+                  <p class="font-medium">Delete Event</p>
+                  <p class="text-sm text-gray-400">Permanently remove this event</p>
+                </div>
+                <button id="deleteEventBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm">
+                  Delete Event
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Modal -->
+  <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">Share Event</h3>
+        <button id="closeShareModal" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-semibold mb-2">Event Link</label>
+        <div class="flex">
+          <input type="text" id="eventLink" class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-l-lg border border-gray-600 focus:outline-none" readonly>
+          <button id="copyLinkBtn" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-r-lg">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-semibold mb-2">Share On</label>
+        <div class="flex justify-center gap-4">
+          <a id="shareFacebook" href="#" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full">
+            <i class="fab fa-facebook-f"></i>
+          </a>
+          <a id="shareTwitter" href="#" class="bg-blue-400 hover:bg-blue-500 text-white p-3 rounded-full">
+            <i class="fab fa-twitter"></i>
+          </a>
+          <a id="shareWhatsapp" href="#" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full">
+            <i class="fab fa-whatsapp"></i>
+          </a>
+          <a id="shareEmail" href="#" class="bg-gray-600 hover:bg-gray-700 text-white p-3 rounded-full">
+            <i class="fas fa-envelope"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+      <div class="text-center">
+        <i class="fas fa-exclamation-triangle text-red-500 text-5xl mb-4"></i>
+        <h3 class="text-xl font-semibold mb-2">Delete Event?</h3>
+        <p class="text-gray-400 mb-6">This will permanently delete the event and all attendee data. This action cannot be undone.</p>
+        <div class="flex justify-center gap-4">
+          <button id="cancelDeleteBtn" class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg">
+            Cancel
+          </button>
+          <button id="confirmDeleteBtn" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg">
+            Delete Event
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { auth, db, functions } = window.firebase;
+      const { 
+        onAuthStateChanged, 
+        signOut,
+        collection,
+        query,
+        where,
+        orderBy,
+        onSnapshot,
+        doc,
+        getDoc,
+        updateDoc,
+        deleteDoc,
+        getDocs,
+        writeBatch
+      } = functions;
+
+      // Get event ID from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const eventId = urlParams.get('id');
+      
+      if (!eventId) {
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      // DOM Elements
+      const eventTitle = document.getElementById('eventTitle');
+      const eventDate = document.getElementById('eventDate');
+      const eventLocation = document.getElementById('eventLocation');
+      const editEventBtn = document.getElementById('editEventBtn');
+      const viewPublicBtn = document.getElementById('viewPublicBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const userEmail = document.getElementById('userEmail');
+      const tabs = document.querySelectorAll('.tabs');
+      const tabContents = document.querySelectorAll('.tab-content');
+      const shareEventBtn = document.getElementById('shareEventBtn');
+      const shareModal = document.getElementById('shareModal');
+      const closeShareModal = document.getElementById('closeShareModal');
+      const eventLink = document.getElementById('eventLink');
+      const copyLinkBtn = document.getElementById('copyLinkBtn');
+      const deleteEventBtn = document.getElementById('deleteEventBtn');
+      const deleteModal = document.getElementById('deleteModal');
+      const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+      const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+      const qrCodeCanvas = document.getElementById('qrCodeCanvas');
+      const downloadQRBtn = document.getElementById('downloadQRBtn');
+      const attendeeList = document.getElementById('attendeeList');
+      const attendeeSearch = document.getElementById('attendeeSearch');
+      const refreshAttendeesBtn = document.getElementById('refreshAttendeesBtn');
+      const checkinSearch = document.getElementById('checkinSearch');
+      const checkinSearchBtn = document.getElementById('checkinSearchBtn');
+      const checkinResults = document.getElementById('checkinResults');
+      const checkinConfirmBtn = document.getElementById('checkinConfirmBtn');
+      const recentCheckins = document.getElementById('recentCheckins');
+
+      // Check auth state
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          window.location.href = 'login.html';
+          return;
+        }
+
+        userEmail.textContent = user.email;
+
+        // Load event data
+        loadEventData(eventId, user.uid);
+        
+        // Set up logout button
+        logoutBtn.addEventListener('click', async () => {
+          try {
+            await signOut(auth);
+            window.location.href = 'login.html';
+          } catch (error) {
+            console.error('Error signing out:', error);
+          }
+        });
+      });
+
+      // Tab switching
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabId = tab.dataset.tab;
+          
+          // Update active tab
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          
+          // Show corresponding content
+          tabContents.forEach(content => {
+            content.classList.remove('active');
+            if (content.id === `${tabId}Tab`) {
+              content.classList.add('active');
+            }
+          });
+        });
+      });
+
+      // Load event data
+      async function loadEventData(eventId, userId) {
+        try {
+          const eventRef = doc(db, 'events', eventId);
+          const eventSnap = await getDoc(eventRef);
+          
+          if (!eventSnap.exists()) {
+            throw new Error('Event not found');
+          }
+          
+          const event = eventSnap.data();
+          
+          // Verify event belongs to current user
+          if (event.userId !== userId) {
+            window.location.href = 'dashboard.html';
+            return;
+          }
+          
+          // Update UI with event data
+          eventTitle.textContent = event.name;
+          eventDate.textContent = event.datetime ? new Date(event.datetime.toDate()).toLocaleDateString() : 'Date not set';
+          eventLocation.textContent = event.location || 'Location not specified';
+          
+          // Set edit and view links
+          editEventBtn.href = `edit-event.html?id=${eventId}`;
+          viewPublicBtn.href = `event.html?id=${eventId}`;
+          
+          // Generate QR code
+          QRCode.toCanvas(qrCodeCanvas, `https://m8ticketing.com/checkin/${eventId}`, {
+            width: 200,
+            margin: 2,
+            color: {
+              dark: '#000000',
+              light: '#ffffff'
+            }
+          }, (error) => {
+            if (error) console.error('QR code error:', error);
+          });
+          
+          // Set up share modal
+          shareEventBtn.addEventListener('click', () => {
+            eventLink.value = `https://m8ticketing.com/event.html?id=${eventId}`;
+            shareModal.classList.remove('hidden');
+          });
+          
+          closeShareModal.addEventListener('click', () => {
+            shareModal.classList.add('hidden');
+          });
+          
+          copyLinkBtn.addEventListener('click', () => {
+            eventLink.select();
+            document.execCommand('copy');
+            // Show copied notification
+            const originalText = copyLinkBtn.innerHTML;
+            copyLinkBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Copied!';
+            setTimeout(() => {
+              copyLinkBtn.innerHTML = originalText;
+            }, 2000);
+          });
+          
+          // Set up social sharing links
+          const shareUrl = encodeURIComponent(eventLink.value);
+          const shareText = encodeURIComponent(`Check out ${event.name} on M8-Ticketing`);
+          
+          document.getElementById('shareFacebook').href = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
+          document.getElementById('shareTwitter').href = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
+          document.getElementById('shareWhatsapp').href = `https://wa.me/?text=${shareText}%20${shareUrl}`;
+          document.getElementById('shareEmail').href = `mailto:?subject=${event.name}&body=${shareText}%0A%0A${shareUrl}`;
+          
+          // Set up delete confirmation
+          deleteEventBtn.addEventListener('click', () => {
+            deleteModal.classList.remove('hidden');
+          });
+          
+          cancelDeleteBtn.addEventListener('click', () => {
+            deleteModal.classList.add('hidden');
+          });
+          
+          confirmDeleteBtn.addEventListener('click', async () => {
+            try {
+              // Delete event and all related data (tickets, attendees)
+              const batch = writeBatch(db);
+              
+              // Delete event
+              batch.delete(doc(db, 'events', eventId));
+              
+              // Delete tickets subcollection
+              const ticketsRef = collection(db, `events/${eventId}/tickets`);
+              const ticketsSnap = await getDocs(ticketsRef);
+              ticketsSnap.forEach(ticketDoc => {
+                batch.delete(ticketDoc.ref);
+              });
+              
+              // Delete attendees subcollection
+              const attendeesRef = collection(db, `events/${eventId}/attendees`);
+              const attendeesSnap = await getDocs(attendeesRef);
+              attendeesSnap.forEach(attendeeDoc => {
+                batch.delete(attendeeDoc.ref);
+              });
+              
+              await batch.commit();
+              
+              // Redirect to dashboard
+              window.location.href = 'dashboard.html';
+            } catch (error) {
+              console.error('Error deleting event:', error);
+              alert('Failed to delete event. Please try again.');
+            }
+          });
+          
+          // Download QR code
+          downloadQRBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `${event.name.replace(/\s+/g, '-')}-qr-code.png`;
+            link.href = qrCodeCanvas.toDataURL('image/png');
+            link.click();
+          });
+          
+          // Load attendees
+          loadAttendees(eventId);
+          
+          // Set up check-in functionality
+          setupCheckIn(eventId);
+          
+        } catch (error) {
+          console.error('Error loading event:', error);
+          alert('Failed to load event data. Please try again.');
+          window.location.href = 'dashboard.html';
+        }
+      }
+      
+      // Load attendees
+      async function loadAttendees(eventId) {
+        try {
+          const attendeesRef = collection(db, `events/${eventId}/attendees`);
+          const attendeesQuery = query(attendeesRef, orderBy('timestamp', 'desc'));
+          
+          onSnapshot(attendeesQuery, (snapshot) => {
+            if (snapshot.empty) {
+              attendeeList.innerHTML = `
+                <tr>
+                  <td colspan="5" class="py-8 text-center text-gray-500">
+                    <i class="fas fa-users-slash text-3xl mb-2"></i>
+                    <p>No attendees yet</p>
+                  </td>
+                </tr>
+              `;
+              return;
+            }
+            
+            attendeeList.innerHTML = '';
+            
+            snapshot.forEach(doc => {
+              const attendee = doc.data();
+              const checkedIn = attendee.checkedIn || false;
+              
+              const row = document.createElement('tr');
+              row.className = 'attendee-row border-b border-gray-700';
+              row.innerHTML = `
+                <td class="py-3">${attendee.name || 'Not provided'}</td>
+                <td class="py-3">${attendee.email || 'Not provided'}</td>
+                <td class="py-3">${attendee.ticketType || 'General'}</td>
+                <td class="py-3">
+                  <span class="${checkedIn ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'} text-xs px-2 py-1 rounded-full">
+                    ${checkedIn ? 'Checked In' : 'Not Checked In'}
+                  </span>
+                </td>
+                <td class="py-3 text-right">
+                  <button data-id="${doc.id}" class="checkin-btn ${checkedIn ? 'bg-gray-700 text-gray-400' : 'bg-pink-600 hover:bg-pink-700 text-white'} px-3 py-1 rounded text-sm">
+                    ${checkedIn ? '<i class="fas fa-undo mr-1"></i> Undo' : '<i class="fas fa-check mr-1"></i> Check In'}
+                  </button>
+                </td>
+              `;
+              
+              attendeeList.appendChild(row);
+            });
+            
+            // Set up check-in buttons
+            document.querySelectorAll('.checkin-btn').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                const attendeeId = btn.dataset.id;
+                const isCheckedIn = btn.textContent.includes('Undo');
+                
+                try {
+                  const attendeeRef = doc(db, `events/${eventId}/attendees`, attendeeId);
+                  await updateDoc(attendeeRef, {
+                    checkedIn: !isCheckedIn,
+                    checkinTime: isCheckedIn ? null : new Date()
+                  });
+                } catch (error) {
+                  console.error('Error updating check-in status:', error);
+                  alert('Failed to update check-in status. Please try again.');
+                }
+              });
+            });
+          });
+          
+          // Set up attendee search
+          attendeeSearch.addEventListener('input', () => {
+            const searchTerm = attendeeSearch.value.toLowerCase();
+            const rows = attendeeList.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+              const name = row.querySelector('td:first-child').textContent.toLowerCase();
+              const email = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+              
+              if (name.includes(searchTerm) || email.includes(searchTerm)) {
+                row.style.display = '';
+              } else {
+                row.style.display = 'none';
+              }
+            });
+          });
+          
+          // Set up refresh button
+          refreshAttendeesBtn.addEventListener('click', () => {
+            loadAttendees(eventId);
+          });
+          
+        } catch (error) {
+          console.error('Error loading attendees:', error);
+          attendeeList.innerHTML = `
+            <tr>
+              <td colspan="5" class="py-8 text-center text-red-500">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                Failed to load attendees
+              </td>
+            </tr>
+          `;
+        }
+      }
+      
+      // Set up check-in functionality
+      function setupCheckIn(eventId) {
+        checkinSearchBtn.addEventListener('click', async () => {
+          const searchTerm = checkinSearch.value.trim();
+          
+          if (!searchTerm) {
+            alert('Please enter a name, email or ticket ID');
+            return;
+          }
+          
+          // In a real app, you would search your attendees collection
+          // This is a simplified version
+          try {
+            const attendeesRef = collection(db, `events/${eventId}/attendees`);
+            const q = query(
+              attendeesRef,
+              where('email', '==', searchTerm)
+            );
+            
+            const querySnapshot = await getDocs(q);
+            
+            if (querySnapshot.empty) {
+              alert('No attendee found with that email');
+              return;
+            }
+            
+            const attendee = querySnapshot.docs[0].data();
+            const attendeeId = querySnapshot.docs[0].id;
+            
+            // Show attendee info
+            document.getElementById('checkinName').textContent = attendee.name || 'Not provided';
+            document.getElementById('checkinEmail').textContent = attendee.email || 'Not provided';
+            document.getElementById('checkinTicketType').textContent = attendee.ticketType || 'General Admission';
+            document.getElementById('checkinTicketId').textContent = `ID: ${attendeeId.substring(0, 6).toUpperCase()}`;
+            
+            checkinResults.classList.remove('hidden');
+            
+            // Set up check-in button
+            checkinConfirmBtn.onclick = async () => {
+              try {
+                const attendeeRef = doc(db, `events/${eventId}/attendees`, attendeeId);
+                await updateDoc(attendeeRef, {
+                  checkedIn: true,
+                  checkinTime: new Date()
+                });
+                
+                // Add to recent check-ins
+                const recentCheckin = document.createElement('div');
+                recentCheckin.className = 'flex items-center justify-between bg-gray-700 p-3 rounded-lg';
+                recentCheckin.innerHTML = `
+                  <div class="flex items-center">
+                    <div class="bg-green-500 rounded-full w-2 h-2 mr-3"></div>
+                    <div>
+                      <p class="text-sm font-medium">${attendee.name || 'Attendee'}</p>
+                      <p class="text-xs text-gray-400">just now</p>
+                    </div>
+                  </div>
+                  <span class="text-xs bg-gray-600 px-2 py-1 rounded">${attendee.ticketType || 'General'}</span>
+                `;
+                
+                recentCheckins.prepend(recentCheckin);
+                
+                // Reset form
+                checkinSearch.value = '';
+                checkinResults.classList.add('hidden');
+                
+                // Show success message
+                alert(`${attendee.name || 'Attendee'} checked in successfully!`);
+              } catch (error) {
+                console.error('Error checking in attendee:', error);
+                alert('Failed to check in attendee. Please try again.');
+              }
+            };
+          } catch (error) {
+            console.error('Error searching for attendee:', error);
+            alert('Error searching for attendee. Please try again.');
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

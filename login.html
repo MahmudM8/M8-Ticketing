@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - M8 Ticketing</title>
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      signInWithEmailAndPassword,
+      sendPasswordResetEmail 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
+
+    // Your Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const analytics = getAnalytics(app);
+
+    // Make auth functions available globally
+    window.auth = auth;
+    window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+    window.sendPasswordResetEmail = sendPasswordResetEmail;
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="index.html" class="text-white hover:text-pink-400 text-sm">← Back to Home</a>
+  </header>
+
+  <!-- Login Form -->
+  <div class="max-w-md mx-auto mt-12 bg-gray-800 p-8 rounded-lg shadow-lg">
+    <h2 class="text-3xl font-bold text-center text-pink-500">Login</h2>
+
+    <form id="loginForm" class="mt-6">
+      <div class="mb-4">
+        <input type="email" id="email" class="w-full p-3 bg-gray-700 rounded-lg text-white focus:outline-none" placeholder="Email Address" required>
+      </div>
+      <div class="mb-6">
+        <input type="password" id="password" class="w-full p-3 bg-gray-700 rounded-lg text-white focus:outline-none" placeholder="Password" required>
+      </div>
+      <button type="submit" class="w-full p-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 focus:outline-none font-semibold">Login</button>
+    </form>
+
+    <p class="mt-4 text-center text-gray-400">Don't have an account? <a href="signup.html" class="text-pink-500 hover:text-pink-400">Sign Up here</a></p>
+    <p class="mt-2 text-center text-pink-500 hover:text-pink-400 cursor-pointer" id="forgotPasswordLink">Forgot Password?</p>
+  </div>
+
+  <!-- Form Handling Script -->
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log("User logged in:", userCredential.user);
+        window.location.href = "dashboard.html"; // Redirect to dashboard
+      } catch (error) {
+        let errorMessage = "Login failed. ";
+        switch(error.code) {
+          case 'auth/user-not-found':
+            errorMessage += "No account found with this email.";
+            break;
+          case 'auth/wrong-password':
+            errorMessage += "Incorrect password.";
+            break;
+          case 'auth/invalid-email':
+            errorMessage += "The email address is invalid.";
+            break;
+          case 'auth/user-disabled':
+            errorMessage += "This account has been disabled.";
+            break;
+          default:
+            errorMessage += error.message;
+        }
+        alert(errorMessage);
+      }
+    });
+
+    document.getElementById('forgotPasswordLink').addEventListener('click', async () => {
+      const email = prompt("Please enter your email address to reset your password:");
+      if (email) {
+        try {
+          await sendPasswordResetEmail(auth, email);
+          alert("Password reset email sent. Please check your inbox.");
+        } catch (error) {
+          alert("Error sending reset email: " + error.message);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
