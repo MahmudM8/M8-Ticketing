@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Us - M8 Ticketing</title>
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    window.firebase = {
+      auth,
+      functions: {
+        onAuthStateChanged,
+        signOut
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .event-card {
+      transition: all 0.3s ease;
+    }
+    .event-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    .btn-primary {
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 15px rgba(236, 72, 153, 0.5);
+    }
+    .feature-card {
+      background: #1e1b3b;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="p-6 flex justify-between items-center border-b border-gray-700">
+  <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+  <div class="flex items-center gap-4">
+    <a href="login.html" id="loginBtn" class="text-white hover:text-pink-400">Login</a>
+    <a href="signup.html" id="signupBtn" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-full font-semibold">Sign Up</a>
+  </div>
+</header>
+
+<!-- Hero Section -->
+<section class="relative overflow-hidden py-20">
+  <div class="max-w-7xl mx-auto px-4 text-center">
+    <h1 class="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+      About M8-Ticketing
+    </h1>
+    <p class="text-xl text-gray-300 max-w-2xl mx-auto mb-8">
+      Your trusted partner for seamless event experiences
+    </p>
+  </div>
+  <div class="absolute inset-0 -z-10 bg-gradient-to-br from-purple-900/30 via-pink-900/20 to-blue-900/30"></div>
+</section>
+
+<!-- Our Story -->
+<section class="max-w-7xl mx-auto px-4 py-12">
+  <div class="grid md:grid-cols-2 gap-12 items-center">
+    <div>
+      <h2 class="text-3xl font-bold mb-6 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+        Our Story
+      </h2>
+      <p class="text-gray-300 mb-4">
+        Founded in 2023, M8-Ticketing was born out of a passion for live events and a frustration with the current ticketing landscape. 
+        We saw an opportunity to create a platform that puts both event-goers and organizers first.
+      </p>
+      <p class="text-gray-300 mb-4">
+        Our journey began in Lagos, Nigeria, where we hosted our first major concert with just 500 attendees. Today, we've grown to serve 
+        thousands of events across multiple countries.
+      </p>
+      <p class="text-gray-300">
+        What sets us apart is our commitment to transparency, innovation, and customer satisfaction.
+      </p>
+    </div>
+    <div class="bg-gray-800 rounded-xl p-6">
+      <img src="https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=2940&auto=format&fit=crop" 
+           alt="Concert crowd" class="w-full h-auto rounded-lg">
+    </div>
+  </div>
+</section>
+
+<!-- Mission Section -->
+<section class="py-12 bg-gray-800/50">
+  <div class="max-w-7xl mx-auto px-4">
+    <h2 class="text-3xl font-bold text-center mb-12">
+      <span class="bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+        Our Mission
+      </span>
+    </h2>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div class="feature-card p-6">
+        <div class="text-pink-500 text-3xl mb-4">
+          <i class="fas fa-bolt"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Innovative Solutions</h3>
+        <p class="text-gray-400">
+          We're constantly developing new features to make event discovery and ticketing effortless.
+        </p>
+      </div>
+      <div class="feature-card p-6">
+        <div class="text-pink-500 text-3xl mb-4">
+          <i class="fas fa-shield-alt"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Transparent Pricing</h3>
+        <p class="text-gray-400">
+          No hidden fees, no surprises. What you see is what you pay.
+        </p>
+      </div>
+      <div class="feature-card p-6">
+        <div class="text-pink-500 text-3xl mb-4">
+          <i class="fas fa-headset"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Exceptional Support</h3>
+        <p class="text-gray-400">
+          Our team is available 24/7 to ensure your event experience is flawless.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Team Section -->
+<section class="max-w-7xl mx-auto px-4 py-12">
+  <h2 class="text-3xl font-bold text-center mb-12">
+    <span class="bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+      Meet The Team
+    </span>
+  </h2>
+  
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+    <div class="bg-gray-800 rounded-xl p-6 text-center">
+      <div class="w-32 h-32 bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+        <i class="fas fa-user text-4xl text-gray-400"></i>
+      </div>
+      <h3 class="text-xl font-semibold mb-1">John Doe</h3>
+      <p class="text-pink-500 mb-4">CEO & Founder</p>
+      <p class="text-gray-400 text-sm">
+        10+ years in event technology and entrepreneurship.
+      </p>
+    </div>
+    <div class="bg-gray-800 rounded-xl p-6 text-center">
+      <div class="w-32 h-32 bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+        <i class="fas fa-user text-4xl text-gray-400"></i>
+      </div>
+      <h3 class="text-xl font-semibold mb-1">Jane Smith</h3>
+      <p class="text-pink-500 mb-4">CTO</p>
+      <p class="text-gray-400 text-sm">
+        Software architect with expertise in scalable systems.
+      </p>
+    </div>
+    <div class="bg-gray-800 rounded-xl p-6 text-center">
+      <div class="w-32 h-32 bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+        <i class="fas fa-user text-4xl text-gray-400"></i>
+      </div>
+      <h3 class="text-xl font-semibold mb-1">Mike Johnson</h3>
+      <p class="text-pink-500 mb-4">Head of Operations</p>
+      <p class="text-gray-400 text-sm">
+        Event production specialist with 8 years experience.
+      </p>
+    </div>
+    <div class="bg-gray-800 rounded-xl p-6 text-center">
+      <div class="w-32 h-32 bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+        <i class="fas fa-user text-4xl text-gray-400"></i>
+      </div>
+      <h3 class="text-xl font-semibold mb-1">Sarah Williams</h3>
+      <p class="text-pink-500 mb-4">Marketing Director</p>
+      <p class="text-gray-400 text-sm">
+        Digital marketing expert focused on live events.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Section -->
+<section class="py-16 bg-gradient-to-br from-purple-900/20 to-pink-900/20">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      <div>
+        <div class="text-4xl font-bold mb-2 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">500K+</div>
+        <div class="text-gray-300">Tickets Sold</div>
+      </div>
+      <div>
+        <div class="text-4xl font-bold mb-2 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">10K+</div>
+        <div class="text-gray-300">Events Hosted</div>
+      </div>
+      <div>
+        <div class="text-4xl font-bold mb-2 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">95%</div>
+        <div class="text-gray-300">Customer Satisfaction</div>
+      </div>
+      <div>
+        <div class="text-4xl font-bold mb-2 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">5+</div>
+        <div class="text-gray-300">Countries</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Call to Action -->
+<section class="bg-gray-800 py-16">
+  <div class="max-w-7xl mx-auto px-4 text-center">
+    <h2 class="text-3xl font-bold mb-6">Ready to join our team?</h2>
+    <p class="text-gray-300 max-w-2xl mx-auto mb-8">
+      We're always looking for talented individuals to help us revolutionize the ticketing industry.
+    </p>
+    <a href="careers.html" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-full font-semibold inline-block">
+      View Open Positions
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="border-t border-gray-700 py-12">
+  
+    <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-500">
+      &copy; 2024 M8-Ticketing. All rights reserved.
+    </div>
+  
+</footer>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const { auth, functions } = window.firebase;
+    const { onAuthStateChanged, signOut } = functions;
+
+    // Handle auth state changes
+    if (auth && onAuthStateChanged) {
+      const loginBtn = document.getElementById('loginBtn');
+      const signupBtn = document.getElementById('signupBtn');
+      
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          loginBtn.textContent = 'Dashboard';
+          loginBtn.href = 'dashboard.html';
+          signupBtn.textContent = 'Logout';
+          signupBtn.href = '#';
+          signupBtn.onclick = () => signOut(auth);
+        } else {
+          loginBtn.textContent = 'Login';
+          loginBtn.href = 'login.html';
+          signupBtn.textContent = 'Sign Up';
+          signupBtn.href = 'signup.html';
+          signupBtn.onclick = null;
+        }
+      });
+    }
+  });
+</script>
+</body>
+</html>

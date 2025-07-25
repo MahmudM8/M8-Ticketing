@@ -66,6 +66,8 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <!-- html2canvas for ticket download -->
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <!-- SendGrid Mail Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@sendgrid/mail@7.7.0"></script>
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -339,6 +341,21 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
+      // =============================================
+      // CHANGE REQUIRED: Configure these 3 values
+      // =============================================
+      const EMAIL_CONFIG = {
+        // Get from SendGrid Dashboard -> Settings -> API Keys
+        SENDGRID_API_KEY: '', 
+        
+        // Must be a verified sender in SendGrid
+        SENDER_EMAIL: 'm8ticketing@gmail.com', 
+        
+        // Prevent email spamming (in milliseconds)
+        EMAIL_COOLDOWN: 30000 // 30 seconds
+      };
+      // =============================================
+      
       const { auth, db, functionsSDK } = window.firebase;
       const { 
         doc, 
@@ -352,6 +369,9 @@
         onAuthStateChanged
       } = functionsSDK;
 
+      // Track last email time for rate limiting
+      let lastEmailTime = 0;
+      
       // Current ticket data
       let currentTicket = {
         eventId: '',
@@ -394,36 +414,11 @@
           QRCode.toCanvas(canvas, text, { width: 180 }, (error) => {
             if (error) {
               console.error('QR code error:', error);
-              // Fallback to text if QR fails
               canvas.getContext('2d').fillText('QR Code Error', 10, 20);
             }
             resolve();
           });
         });
-      }
-
-      // Validate ticket data before writing to Firestore
-      function validateTicketData(ticketData) {
-        const requiredFields = ['eventId', 'attendeeName', 'attendeeEmail'];
-        const missingFields = requiredFields.filter(field => !ticketData[field]);
-        
-        if (missingFields.length > 0) {
-          throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-        }
-        
-        if (ticketData.eventDate && !(ticketData.eventDate instanceof Date || 
-            (typeof ticketData.eventDate === 'object' && 'toDate' in ticketData.eventDate))) {
-          ticketData.eventDate = serverTimestamp();
-        }
-        
-        return ticketData;
-      }
-
-      // Clean ticket data by removing undefined fields
-      function cleanTicketData(ticketData) {
-        return Object.fromEntries(
-          Object.entries(ticketData).filter(([_, v]) => v !== undefined)
-        );
       }
 
       // Load event data
@@ -540,13 +535,11 @@
                 qrCodeData: qrCodeData
               };
               
-              const validatedData = validateTicketData(ticketData);
-              const cleanData = cleanTicketData(validatedData);
-              const docRef = await addDoc(ticketRef, cleanData);
+              const docRef = await addDoc(ticketRef, ticketData);
               
               if (i === 0) {
                 currentTicket = {
-                  ...cleanData,
+                  ...ticketData,
                   id: docRef.id
                 };
               }
@@ -556,6 +549,50 @@
           return true;
         } catch (error) {
           console.error('Error claiming ticket:', error);
+          throw error;
+        }
+      }
+
+      // Send ticket via email
+      async function sendTicketEmail() {
+        try {
+          sgMail.setApiKey(EMAIL_CONFIG.SENDGRID_API_KEY);
+          
+          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentTicket.qrCodeData)}`;
+          
+          const msg = {
+            to: currentTicket.attendeeEmail,
+            from: EMAIL_CONFIG.SENDER_EMAIL,
+            subject: `Your Ticket for ${currentTicket.eventName}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #4a90e2;">Your Event Ticket</h2>
+                <p>Hello ${currentTicket.attendeeName},</p>
+                <p>Here's your ticket for <strong>${currentTicket.eventName}</strong>.</p>
+                
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3 style="margin-top: 0;">Event Details</h3>
+                  <p><strong>Date:</strong> ${formatDate(currentTicket.eventDate)}</p>
+                  <p><strong>Location:</strong> ${currentTicket.eventLocation}</p>
+                  <p><strong>Ticket #:</strong> ${currentTicket.ticketNumber}</p>
+                  
+                  <div style="text-align: center; margin: 20px 0;">
+                    <img src="${qrCodeUrl}" alt="QR Code" style="max-width: 200px;"/>
+                    <p style="font-size: 12px; color: #666;">Present this QR code at the event entrance</p>
+                  </div>
+                </div>
+                
+                <p>Thank you for using M8 Ticketing!</p>
+                <p style="font-size: 12px; color: #999;">This is an automated message, please do not reply.</p>
+              </div>
+            `,
+            text: `EVENT TICKET\n------------------\nEvent: ${currentTicket.eventName}\nDate: ${formatDate(currentTicket.eventDate)}\nLocation: ${currentTicket.eventLocation}\nTicket #: ${currentTicket.ticketNumber}\nAttendee: ${currentTicket.attendeeName}\n\nINSTRUCTIONS:\n1. Present this email at the event\n2. Or show the QR code at: ${qrCodeUrl}`
+          };
+
+          await sgMail.send(msg);
+          return true;
+        } catch (error) {
+          console.error('Error sending email:', error);
           throw error;
         }
       }
@@ -612,68 +649,33 @@
           }
         });
         
-        // Set up email button (client-side solution)
-        document.getElementById('emailTicketBtn').addEventListener('click', () => {
+        // Set up email button
+        document.getElementById('emailTicketBtn').addEventListener('click', async () => {
           const btn = document.getElementById('emailTicketBtn');
+          const now = Date.now();
+          
+          
+          // Rate limiting check
+          if (now - lastEmailTime < EMAIL_CONFIG.EMAIL_COOLDOWN) {
+            alert(`Please wait ${Math.ceil((EMAIL_CONFIG.EMAIL_COOLDOWN - (now - lastEmailTime)))/1000} seconds before sending another email`);
+            return;
+          }
+          
           btn.disabled = true;
-          btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Preparing...';
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Sending...';
           
           try {
-            // Generate ticket content
-            const subject = `Your Ticket for ${currentTicket.eventName}`;
-            const qrCanvas = document.getElementById('qrCanvas');
-            const qrImage = qrCanvas.toDataURL('image/png');
-            
-            const body = `
-              EVENT TICKET
-              --------------------------
-              Event: ${currentTicket.eventName}
-              Date: ${formatDate(currentTicket.eventDate)}
-              Location: ${currentTicket.eventLocation}
-              Ticket #: ${currentTicket.ticketNumber}
-              Attendee: ${currentTicket.attendeeName}
-              
-              INSTRUCTIONS:
-              1. Present this email at the event
-              2. Or show the QR code below
-              
-              QR CODE:
-              ${qrImage}
-            `;
-
-            // Create mailto link
-            const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            
-            // Open user's email client
-            window.location.href = mailtoLink;
-            
-            // Create downloadable calendar event
-            const eventDate = currentTicket.eventDate.toDate ? currentTicket.eventDate.toDate() : new Date(currentTicket.eventDate);
-            const icsContent = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-SUMMARY:${currentTicket.eventName}
-DTSTART:${eventDate.toISOString().replace(/[-:]/g,'').split('.')[0]}Z
-LOCATION:${currentTicket.eventLocation}
-DESCRIPTION:Ticket #: ${currentTicket.ticketNumber}\\nEvent: ${currentTicket.eventName}
-END:VEVENT
-END:VCALENDAR`;
-            
-            const blob = new Blob([icsContent], { type: 'text/calendar' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'event-invite.ics';
-            a.click();
-            
+            const success = await sendTicketEmail();
+            if (success) {
+              lastEmailTime = Date.now();
+              alert('Ticket sent to your email successfully! Check your inbox (and spam folder).');
+            }
           } catch (error) {
-            console.error('Error preparing email:', error);
-            alert('Failed to prepare email. Please try again.');
+            console.error('Error sending email:', error);
+            alert('Failed to send email. Please try again later.');
           } finally {
-            setTimeout(() => {
-              btn.disabled = false;
-              btn.innerHTML = '<i class="fas fa-envelope mr-2"></i> Email Ticket';
-            }, 2000);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-envelope mr-2"></i> Email Ticket';
           }
         });
       }

@@ -1,17 +1,1 @@
-{
-  "functions": {
-    "source": "functions",
-    "predeploy": [
-      "npm --prefix \"$RESOURCE_DIR\" run lint",
-      "npm --prefix \"$RESOURCE_DIR\" run build"
-    ]
-  },
-  "hosting": {
-    "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ]
-  }
-}
+{"indexes":[{"collectionGroup":"events","fields":[{"fieldPath":"datetime","order":"ASCENDING"},{"fieldPath":"isPublished","order":"ASCENDING"}]},{"collectionGroup":"tickets","fields":[{"fieldPath":"eventId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"}]}]} 

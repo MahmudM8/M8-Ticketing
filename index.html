@@ -10,19 +10,21 @@
     import { 
       getAuth, 
       onAuthStateChanged,
-      signOut 
+      signOut
     } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
     import { 
       getFirestore,
       collection,
-      query,
+      query, 
       where,
       orderBy,
       limit,
       onSnapshot,
       doc,
       updateDoc,
-      increment
+      increment,
+      addDoc,
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -52,6 +54,8 @@
         doc,
         updateDoc,
         increment,
+        addDoc,
+        serverTimestamp,
         onAuthStateChanged,
         signOut
       }
@@ -148,7 +152,7 @@
       <a href="#events" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-full font-semibold">
         Explore Events
       </a>
-      <a href="create-event.html" class="btn-primary bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-full font-semibold border border-gray-600">
+      <a href="signup.html" class="btn-primary bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-full font-semibold border border-gray-600">
         Host an Event
       </a>
     </div>
@@ -295,7 +299,7 @@
     <p class="text-gray-300 max-w-2xl mx-auto mb-8">
       Join thousands of organizers who use M8-Ticketing to sell tickets and manage their events.
     </p>
-    <a href="create-event.html" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-full font-semibold inline-block">
+    <a href="signup.html" class="btn-primary bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-full font-semibold inline-block">
       Create Event Now
     </a>
   </div>
@@ -323,30 +327,37 @@
       <div>
         <h3 class="text-lg font-semibold mb-4">Company</h3>
         <ul class="space-y-2">
-          <li><a href="#" class="text-gray-400 hover:text-white">About Us</a></li>
-          <li><a href="#" class="text-gray-400 hover:text-white">Careers</a></li>
-          <li><a href="#" class="text-gray-400 hover:text-white">Blog</a></li>
-          <li><a href="#" class="text-gray-400 hover:text-white">Press</a></li>
+          <li><a href="about.html" class="text-gray-400 hover:text-white hover:underline">About Us</a></li>
+          <li><a href="contact.html" class="text-gray-400 hover:text-white hover:underline">Contact Us</a></li>
+          <!---<li><a href="careers.html" class="text-gray-400 hover:text-white">Careers</a></li> --->  
         </ul>
       </div>
       <div>
         <h3 class="text-lg font-semibold mb-4">Support</h3>
         <ul class="space-y-2">
-          <li><a href="#" class="text-gray-400 hover:text-white">Help Center</a></li>
-          <li><a href="#" class="text-gray-400 hover:text-white">Contact Us</a></li>
-          <li><a href="#" class="text-gray-400 hover:text-white">Privacy</a></li>
-          <li><a href="#" class="text-gray-400 hover:text-white">Terms</a></li>
+          <li><a href="help.html" class="text-gray-400 hover:text-white hover:underline">Help Center</a></li>
+          
+          <li><a href="privacy.html" class="text-gray-400 hover:text-white hover:underline">Privacy</a></li>
+          
         </ul>
       </div>
       <div>
         <h3 class="text-lg font-semibold mb-4">Newsletter</h3>
         <p class="text-gray-400 mb-4">Subscribe for event updates and deals</p>
-        <div class="flex">
-          <input type="email" placeholder="Your email" class="bg-gray-700 text-white px-4 py-2 rounded-l-lg focus:outline-none w-full">
-          <button class="bg-pink-600 hover:bg-pink-700 px-4 py-2 rounded-r-lg">
+        <form id="newsletterForm" class="flex">
+          <input 
+            type="email" 
+            id="newsletterEmail" 
+            placeholder="Your email" 
+            required
+            class="w-full bg-gray-700 text-white px-4 py-2 rounded-l-lg focus:ring-2 focus:ring-pink-500 focus:outline-none">
+          <button 
+            type="submit"
+            class="bg-pink-600 hover:bg-pink-700 px-4 py-2 rounded-r-lg transition-colors duration-200">
             <i class="fas fa-paper-plane"></i>
           </button>
-        </div>
+        </form>
+        <div id="newsletterMessage" class="mt-2 text-sm hidden"></div>
       </div>
     </div>
     <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-500">
@@ -368,6 +379,8 @@
       doc,
       updateDoc,
       increment,
+      addDoc,
+      serverTimestamp,
       onAuthStateChanged,
       signOut
     } = functions;
@@ -383,6 +396,9 @@
     const categoryFilters = document.querySelectorAll('.category-filter');
     const loginBtn = document.getElementById('loginBtn');
     const signupBtn = document.getElementById('signupBtn');
+    const newsletterForm = document.getElementById('newsletterForm');
+    const newsletterEmail = document.getElementById('newsletterEmail');
+    const newsletterMessage = document.getElementById('newsletterMessage');
 
     // Track event views
     function trackEventView(eventId) {
@@ -578,6 +594,49 @@
           filterEvents();
         });
       });
+    }
+
+    // Newsletter form handling
+    if (newsletterForm) {
+      newsletterForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = newsletterEmail.value.trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (!emailRegex.test(email)) {
+          showNewsletterMessage('Please enter a valid email address', 'text-red-400');
+          return;
+        }
+
+        try {
+          // Add to Firestore
+          await addDoc(
+            collection(db, 'newsletterSubscribers'),
+            {
+              email: email,
+              createdAt: serverTimestamp(),
+              source: 'website-footer'
+            }
+          );
+          
+          showNewsletterMessage('Thanks for subscribing!', 'text-green-400');
+          newsletterEmail.value = '';
+        } catch (error) {
+          console.error('Error adding subscriber:', error);
+          showNewsletterMessage('Subscription failed. Please try again.', 'text-red-400');
+        }
+      });
+    }
+
+    function showNewsletterMessage(text, colorClass) {
+      newsletterMessage.textContent = text;
+      newsletterMessage.className = `mt-2 text-sm ${colorClass}`;
+      newsletterMessage.classList.remove('hidden');
+      
+      setTimeout(() => {
+        newsletterMessage.classList.add('hidden');
+      }, 5000);
     }
 
     // Initialize
