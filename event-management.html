@@ -20,11 +20,11 @@
       orderBy,
       onSnapshot,
       doc,
-      getDoc,
       updateDoc,
       deleteDoc,
       getDocs,
-      writeBatch
+      writeBatch,
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -51,13 +51,13 @@
         orderBy,
         onSnapshot,
         doc,
-        getDoc,
         updateDoc,
         deleteDoc,
         getDocs,
         writeBatch,
         onAuthStateChanged,
-        signOut
+        signOut,
+        serverTimestamp
       }
     };
   </script>
@@ -67,6 +67,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <!-- QR Code Library -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <!-- SheetJS for CSV export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -120,6 +122,48 @@
       background: white;
       padding: 10px;
       border-radius: 8px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #10b981;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      animation: slideIn 0.3s ease;
+      z-index: 1000;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+    .badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+    .badge-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+    @media (min-width: 768px) {
+      .stat-value {
+        font-size: 1.875rem;
+      }
     }
   </style>
 </head>
@@ -244,6 +288,14 @@
                 <p class="text-gray-400 text-sm">End Time</p>
                 <p id="eventEndTime" class="font-medium">Loading...</p>
               </div>
+              <div>
+                <p class="text-gray-400 text-sm">Total Capacity</p>
+                <p id="totalCapacity" class="font-medium">Loading...</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-sm">Tickets Left</p>
+                <p id="ticketsLeft" class="font-medium text-green-400">Loading...</p>
+              </div>
             </div>
             <div class="mb-6">
               <p class="text-gray-400 text-sm mb-2">Description</p>
@@ -284,13 +336,36 @@
       <!-- Attendees Tab -->
       <div id="attendeesTab" class="tab-content">
         <div class="bg-gray-800 rounded-lg p-6">
-          <div class="flex justify-between items-center mb-6">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <h3 class="text-xl font-semibold">Attendee List</h3>
-            <div class="flex gap-2">
-              <input type="text" id="attendeeSearch" placeholder="Search attendees..." class="bg-gray-700 text-white px-4 py-2 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none">
+            <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <div class="relative flex-1">
+                <input type="text" id="attendeeSearch" placeholder="Search attendees..." class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none">
+                <i class="fas fa-search absolute right-3 top-3 text-gray-400"></i>
+              </div>
               <button id="refreshAttendeesBtn" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
                 <i class="fas fa-sync-alt"></i>
               </button>
+            </div>
+          </div>
+          
+          <!-- Attendee Stats Summary -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div class="bg-gray-900 p-3 rounded-lg">
+              <p class="text-xs text-gray-400">Total</p>
+              <p class="text-xl font-bold" id="attendeeTotal">0</p>
+            </div>
+            <div class="bg-gray-900 p-3 rounded-lg">
+              <p class="text-xs text-gray-400">Checked In</p>
+              <p class="text-xl font-bold text-green-400" id="attendeeCheckedIn">0</p>
+            </div>
+            <div class="bg-gray-900 p-3 rounded-lg">
+              <p class="text-xs text-gray-400">Pending</p>
+              <p class="text-xl font-bold text-yellow-400" id="attendeePending">0</p>
+            </div>
+            <div class="bg-gray-900 p-3 rounded-lg">
+              <p class="text-xs text-gray-400">Check-in %</p>
+              <p class="text-xl font-bold text-pink-400" id="attendeePercentage">0%</p>
             </div>
           </div>
           
@@ -301,15 +376,17 @@
                 <tr class="border-b border-gray-700 text-left text-gray-400">
                   <th class="pb-3">Name</th>
                   <th class="pb-3">Email</th>
-                  <th class="pb-3">Tickets</th>
+                  <th class="pb-3">Ticket Type</th>
+                  <th class="pb-3">Quantity</th>
                   <th class="pb-3">Status</th>
+                  <th class="pb-3">Check-in Time</th>
                   <th class="pb-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody id="attendeeList">
                 <!-- Attendees will be loaded here -->
                 <tr>
-                  <td colspan="5" class="py-8 text-center text-gray-500">
+                  <td colspan="7" class="py-8 text-center text-gray-500">
                     <div class="loader mx-auto"></div>
                     <p class="mt-2">Loading attendees...</p>
                   </td>
@@ -338,6 +415,23 @@
           <!-- Manual Check-In Section -->
           <div class="bg-gray-800 rounded-lg p-6 lg:col-span-2">
             <h3 class="text-xl font-semibold mb-4">Manual Check-In</h3>
+            
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-3 gap-3 mb-6">
+              <div class="bg-gray-900 p-3 rounded-lg text-center">
+                <p class="text-xs text-gray-400">Total</p>
+                <p class="text-xl font-bold" id="checkinTotal">0</p>
+              </div>
+              <div class="bg-gray-900 p-3 rounded-lg text-center">
+                <p class="text-xs text-gray-400">Checked</p>
+                <p class="text-xl font-bold text-green-400" id="checkinChecked">0</p>
+              </div>
+              <div class="bg-gray-900 p-3 rounded-lg text-center">
+                <p class="text-xs text-gray-400">Remaining</p>
+                <p class="text-xl font-bold text-yellow-400" id="checkinRemaining">0</p>
+              </div>
+            </div>
+            
             <div class="mb-6">
               <label class="block text-sm font-semibold mb-2">Search Attendee</label>
               <div class="relative">
@@ -349,7 +443,7 @@
             </div>
 
             <!-- Check-In Results -->
-            <div id="checkinResults" class="hidden">
+            <div id="checkinResults" class="hidden mb-6">
               <div class="border-t border-gray-700 pt-4">
                 <h4 class="font-medium mb-2">Attendee Found</h4>
                 <div class="flex justify-between items-center bg-gray-700 p-3 rounded-lg mb-4">
@@ -371,27 +465,8 @@
             <!-- Recent Check-Ins -->
             <div class="mt-8">
               <h4 class="font-medium mb-3">Recent Check-Ins</h4>
-              <div class="space-y-2" id="recentCheckins">
-                <div class="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
-                  <div class="flex items-center">
-                    <div class="bg-green-500 rounded-full w-2 h-2 mr-3"></div>
-                    <div>
-                      <p class="text-sm font-medium">Jane Smith</p>
-                      <p class="text-xs text-gray-400">2 minutes ago</p>
-                    </div>
-                  </div>
-                  <span class="text-xs bg-gray-600 px-2 py-1 rounded">General</span>
-                </div>
-                <div class="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
-                  <div class="flex items-center">
-                    <div class="bg-green-500 rounded-full w-2 h-2 mr-3"></div>
-                    <div>
-                      <p class="text-sm font-medium">Mike Johnson</p>
-                      <p class="text-xs text-gray-400">5 minutes ago</p>
-                    </div>
-                  </div>
-                  <span class="text-xs bg-gray-600 px-2 py-1 rounded">VIP</span>
-                </div>
+              <div id="recentCheckins" class="space-y-2">
+                <!-- Recent check-ins will be loaded here -->
               </div>
             </div>
           </div>
@@ -402,6 +477,20 @@
       <div id="settingsTab" class="tab-content">
         <div class="bg-gray-800 rounded-lg p-6">
           <h3 class="text-xl font-semibold mb-6">Event Settings</h3>
+          
+          <!-- Event Status Toggle -->
+          <div class="mb-8 p-4 bg-gray-900 rounded-lg">
+            <h4 class="font-medium mb-3">Event Status</h4>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-300">Currently: <span id="currentStatus" class="font-bold text-pink-400">Published</span></p>
+                <p class="text-xs text-gray-400">Toggle to stop or start ticket sales</p>
+              </div>
+              <button id="toggleStatusBtn" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg text-sm">
+                Toggle Status
+              </button>
+            </div>
+          </div>
           
           <!-- Danger Zone -->
           <div class="border border-red-500/30 rounded-lg p-5">
@@ -426,7 +515,7 @@
               <div class="flex justify-between items-center">
                 <div>
                   <p class="font-medium">Delete Event</p>
-                  <p class="text-sm text-gray-400">Permanently remove this event</p>
+                  <p class="text-sm text-gray-400">Permanently remove this event and all attendee data</p>
                 </div>
                 <button id="deleteEventBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm">
                   Delete Event
@@ -460,16 +549,16 @@
       <div class="mb-4">
         <label class="block text-sm font-semibold mb-2">Share On</label>
         <div class="flex justify-center gap-4">
-          <a id="shareFacebook" href="#" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full">
+          <a id="shareFacebook" href="#" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full">
             <i class="fab fa-facebook-f"></i>
           </a>
-          <a id="shareTwitter" href="#" class="bg-blue-400 hover:bg-blue-500 text-white p-3 rounded-full">
+          <a id="shareTwitter" href="#" target="_blank" class="bg-blue-400 hover:bg-blue-500 text-white p-3 rounded-full">
             <i class="fab fa-twitter"></i>
           </a>
-          <a id="shareWhatsapp" href="#" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full">
+          <a id="shareWhatsapp" href="#" target="_blank" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full">
             <i class="fab fa-whatsapp"></i>
           </a>
-          <a id="shareEmail" href="#" class="bg-gray-600 hover:bg-gray-700 text-white p-3 rounded-full">
+          <a id="shareEmail" href="#" target="_blank" class="bg-gray-600 hover:bg-gray-700 text-white p-3 rounded-full">
             <i class="fas fa-envelope"></i>
           </a>
         </div>
@@ -496,6 +585,28 @@
     </div>
   </div>
 
+  <!-- Cancel Event Modal -->
+  <div id="cancelModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+      <div class="text-center">
+        <i class="fas fa-exclamation-circle text-yellow-500 text-5xl mb-4"></i>
+        <h3 class="text-xl font-semibold mb-2">Cancel Event?</h3>
+        <p class="text-gray-400 mb-6">This will stop ticket sales and mark the event as cancelled. You can reactivate it later.</p>
+        <div class="flex justify-center gap-4">
+          <button id="closeCancelModal" class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg">
+            Close
+          </button>
+          <button id="confirmCancelBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded-lg">
+            Cancel Event
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden"></div>
+
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       const { auth, db, functions } = window.firebase;
@@ -508,11 +619,11 @@
         orderBy,
         onSnapshot,
         doc,
-        getDoc,
         updateDoc,
         deleteDoc,
         getDocs,
-        writeBatch
+        writeBatch,
+        serverTimestamp
       } = functions;
 
       // Get event ID from URL
@@ -543,16 +654,61 @@
       const deleteModal = document.getElementById('deleteModal');
       const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
       const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+      const cancelEventBtn = document.getElementById('cancelEventBtn');
+      const cancelModal = document.getElementById('cancelModal');
+      const closeCancelModal = document.getElementById('closeCancelModal');
+      const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+      const toggleStatusBtn = document.getElementById('toggleStatusBtn');
+      const currentStatus = document.getElementById('currentStatus');
       const qrCodeCanvas = document.getElementById('qrCodeCanvas');
       const downloadQRBtn = document.getElementById('downloadQRBtn');
       const attendeeList = document.getElementById('attendeeList');
       const attendeeSearch = document.getElementById('attendeeSearch');
       const refreshAttendeesBtn = document.getElementById('refreshAttendeesBtn');
+      const downloadAttendeesBtn = document.getElementById('downloadAttendeesBtn');
       const checkinSearch = document.getElementById('checkinSearch');
       const checkinSearchBtn = document.getElementById('checkinSearchBtn');
       const checkinResults = document.getElementById('checkinResults');
       const checkinConfirmBtn = document.getElementById('checkinConfirmBtn');
       const recentCheckins = document.getElementById('recentCheckins');
+      const toast = document.getElementById('toast');
+      
+      // Stats elements
+      const totalTickets = document.getElementById('totalTickets');
+      const reservedTickets = document.getElementById('reservedTickets');
+      const checkedInTickets = document.getElementById('checkedInTickets');
+      const totalRevenue = document.getElementById('totalRevenue');
+      const totalCapacity = document.getElementById('totalCapacity');
+      const ticketsLeft = document.getElementById('ticketsLeft');
+      
+      // Attendee summary elements
+      const attendeeTotal = document.getElementById('attendeeTotal');
+      const attendeeCheckedIn = document.getElementById('attendeeCheckedIn');
+      const attendeePending = document.getElementById('attendeePending');
+      const attendeePercentage = document.getElementById('attendeePercentage');
+      
+      // Check-in stats elements
+      const checkinTotal = document.getElementById('checkinTotal');
+      const checkinChecked = document.getElementById('checkinChecked');
+      const checkinRemaining = document.getElementById('checkinRemaining');
+
+      // Toast function
+      function showToast(message, type = 'success') {
+        toast.textContent = message;
+        toast.className = `toast ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
+        toast.classList.remove('hidden');
+        
+        setTimeout(() => {
+          toast.classList.add('hidden');
+        }, 3000);
+      }
+
+      // Format date
+      function formatDate(date) {
+        if (!date) return 'Date not set';
+        const d = date.toDate ? date.toDate() : new Date(date);
+        return d.toLocaleDateString() + ' • ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      }
 
       // Check auth state
       onAuthStateChanged(auth, async (user) => {
@@ -563,7 +719,7 @@
 
         userEmail.textContent = user.email;
 
-        // Load event data
+        // Load event data with real-time updates
         loadEventData(eventId, user.uid);
         
         // Set up logout button
@@ -596,17 +752,18 @@
         });
       });
 
-      // Load event data
-      async function loadEventData(eventId, userId) {
-        try {
-          const eventRef = doc(db, 'events', eventId);
-          const eventSnap = await getDoc(eventRef);
-          
-          if (!eventSnap.exists()) {
-            throw new Error('Event not found');
+      // Load event data with real-time updates
+      function loadEventData(eventId, userId) {
+        const eventRef = doc(db, 'events', eventId);
+        
+        // Real-time listener for event data
+        onSnapshot(eventRef, (docSnap) => {
+          if (!docSnap.exists()) {
+            window.location.href = 'dashboard.html';
+            return;
           }
           
-          const event = eventSnap.data();
+          const event = docSnap.data();
           
           // Verify event belongs to current user
           if (event.userId !== userId) {
@@ -615,298 +772,523 @@
           }
           
           // Update UI with event data
-          eventTitle.textContent = event.name;
-          eventDate.textContent = event.datetime ? new Date(event.datetime.toDate()).toLocaleDateString() : 'Date not set';
-          eventLocation.textContent = event.location || 'Location not specified';
-          
-          // Set edit and view links
-          editEventBtn.href = `edit-event.html?id=${eventId}`;
-          viewPublicBtn.href = `event.html?id=${eventId}`;
-          
-          // Generate QR code
-          QRCode.toCanvas(qrCodeCanvas, `https://m8ticketing.com/checkin/${eventId}`, {
-            width: 200,
-            margin: 2,
-            color: {
-              dark: '#000000',
-              light: '#ffffff'
-            }
-          }, (error) => {
-            if (error) console.error('QR code error:', error);
-          });
-          
-          // Set up share modal
-          shareEventBtn.addEventListener('click', () => {
-            eventLink.value = `https://m8ticketing.com/event.html?id=${eventId}`;
-            shareModal.classList.remove('hidden');
-          });
-          
-          closeShareModal.addEventListener('click', () => {
-            shareModal.classList.add('hidden');
-          });
-          
-          copyLinkBtn.addEventListener('click', () => {
-            eventLink.select();
-            document.execCommand('copy');
-            // Show copied notification
-            const originalText = copyLinkBtn.innerHTML;
-            copyLinkBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Copied!';
-            setTimeout(() => {
-              copyLinkBtn.innerHTML = originalText;
-            }, 2000);
-          });
-          
-          // Set up social sharing links
-          const shareUrl = encodeURIComponent(eventLink.value);
-          const shareText = encodeURIComponent(`Check out ${event.name} on M8-Ticketing`);
-          
-          document.getElementById('shareFacebook').href = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
-          document.getElementById('shareTwitter').href = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
-          document.getElementById('shareWhatsapp').href = `https://wa.me/?text=${shareText}%20${shareUrl}`;
-          document.getElementById('shareEmail').href = `mailto:?subject=${event.name}&body=${shareText}%0A%0A${shareUrl}`;
-          
-          // Set up delete confirmation
-          deleteEventBtn.addEventListener('click', () => {
-            deleteModal.classList.remove('hidden');
-          });
-          
-          cancelDeleteBtn.addEventListener('click', () => {
-            deleteModal.classList.add('hidden');
-          });
-          
-          confirmDeleteBtn.addEventListener('click', async () => {
-            try {
-              // Delete event and all related data (tickets, attendees)
-              const batch = writeBatch(db);
-              
-              // Delete event
-              batch.delete(doc(db, 'events', eventId));
-              
-              // Delete tickets subcollection
-              const ticketsRef = collection(db, `events/${eventId}/tickets`);
-              const ticketsSnap = await getDocs(ticketsRef);
-              ticketsSnap.forEach(ticketDoc => {
-                batch.delete(ticketDoc.ref);
-              });
-              
-              // Delete attendees subcollection
-              const attendeesRef = collection(db, `events/${eventId}/attendees`);
-              const attendeesSnap = await getDocs(attendeesRef);
-              attendeesSnap.forEach(attendeeDoc => {
-                batch.delete(attendeeDoc.ref);
-              });
-              
-              await batch.commit();
-              
-              // Redirect to dashboard
-              window.location.href = 'dashboard.html';
-            } catch (error) {
-              console.error('Error deleting event:', error);
-              alert('Failed to delete event. Please try again.');
-            }
-          });
-          
-          // Download QR code
-          downloadQRBtn.addEventListener('click', () => {
-            const link = document.createElement('a');
-            link.download = `${event.name.replace(/\s+/g, '-')}-qr-code.png`;
-            link.href = qrCodeCanvas.toDataURL('image/png');
-            link.click();
-          });
-          
-          // Load attendees
-          loadAttendees(eventId);
-          
-          // Set up check-in functionality
-          setupCheckIn(eventId);
-          
-        } catch (error) {
+          updateEventUI(event, eventId);
+        }, (error) => {
           console.error('Error loading event:', error);
-          alert('Failed to load event data. Please try again.');
-          window.location.href = 'dashboard.html';
-        }
+          showToast('Failed to load event data', 'error');
+        });
+
+        // Load attendees with real-time updates
+        loadAttendees(eventId);
+        
+        // Load recent check-ins
+        loadRecentCheckins(eventId);
       }
-      
-      // Load attendees
-      async function loadAttendees(eventId) {
-        try {
-          const attendeesRef = collection(db, `events/${eventId}/attendees`);
-          const attendeesQuery = query(attendeesRef, orderBy('timestamp', 'desc'));
-          
-          onSnapshot(attendeesQuery, (snapshot) => {
-            if (snapshot.empty) {
-              attendeeList.innerHTML = `
-                <tr>
-                  <td colspan="5" class="py-8 text-center text-gray-500">
-                    <i class="fas fa-users-slash text-3xl mb-2"></i>
-                    <p>No attendees yet</p>
-                  </td>
-                </tr>
-              `;
-              return;
-            }
-            
-            attendeeList.innerHTML = '';
-            
-            snapshot.forEach(doc => {
-              const attendee = doc.data();
-              const checkedIn = attendee.checkedIn || false;
-              
-              const row = document.createElement('tr');
-              row.className = 'attendee-row border-b border-gray-700';
-              row.innerHTML = `
-                <td class="py-3">${attendee.name || 'Not provided'}</td>
-                <td class="py-3">${attendee.email || 'Not provided'}</td>
-                <td class="py-3">${attendee.ticketType || 'General'}</td>
-                <td class="py-3">
-                  <span class="${checkedIn ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'} text-xs px-2 py-1 rounded-full">
-                    ${checkedIn ? 'Checked In' : 'Not Checked In'}
-                  </span>
+
+      // Update event UI
+      function updateEventUI(event, eventId) {
+        eventTitle.textContent = event.name;
+        
+        const eventDateObj = event.datetime ? event.datetime.toDate() : new Date(event.datetime);
+        eventDate.textContent = formatDate(event.datetime);
+        eventLocation.textContent = event.location || 'Location not specified';
+        
+        // Set edit and view links
+        editEventBtn.href = `edit-event.html?id=${eventId}`;
+        viewPublicBtn.href = `event.html?id=${eventId}`;
+        
+        // Update overview tab
+        document.getElementById('eventType').textContent = event.eventType === 'free' ? 'Free' : 'Paid';
+        document.getElementById('eventStatus').textContent = event.isPublished ? 'Published' : 'Draft';
+        currentStatus.textContent = event.isPublished ? 'Published' : 'Draft';
+        document.getElementById('eventStartTime').textContent = event.startTime || formatDate(event.datetime);
+        document.getElementById('eventEndTime').textContent = event.endTime || 'Not specified';
+        document.getElementById('eventDescription').textContent = event.description || 'No description provided';
+        document.getElementById('eventOrganizer').textContent = event.organizer || 'Event Organizer';
+        document.getElementById('eventContact').textContent = event.contactEmail || event.contactPhone || 'No contact info';
+        
+        // Update capacity info
+        const capacity = event.ticketQuantity || 0;
+        const sold = event.ticketsSold || 0;
+        const left = capacity - sold;
+        totalCapacity.textContent = capacity;
+        ticketsLeft.textContent = left;
+        ticketsLeft.className = left > 0 ? 'font-medium text-green-400' : 'font-medium text-red-400';
+        
+        // Generate QR code
+        QRCode.toCanvas(qrCodeCanvas, `${window.location.origin}/claim-ticket.html?id=${eventId}`, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        }, (error) => {
+          if (error) console.error('QR code error:', error);
+        });
+        
+        // Set up share modal
+        setupShareModal(event, eventId);
+        
+        // Download QR code
+        downloadQRBtn.addEventListener('click', () => {
+          const link = document.createElement('a');
+          link.download = `${event.name.replace(/\s+/g, '-')}-qr-code.png`;
+          link.href = qrCodeCanvas.toDataURL('image/png');
+          link.click();
+        });
+        
+        // Toggle event status
+        toggleStatusBtn.addEventListener('click', async () => {
+          try {
+            const eventRef = doc(db, 'events', eventId);
+            await updateDoc(eventRef, {
+              isPublished: !event.isPublished,
+              updatedAt: serverTimestamp()
+            });
+            showToast(`Event ${event.isPublished ? 'unpublished' : 'published'} successfully`);
+          } catch (error) {
+            console.error('Error toggling status:', error);
+            showToast('Failed to update event status', 'error');
+          }
+        });
+        
+        // Cancel event
+        cancelEventBtn.addEventListener('click', () => {
+          cancelModal.classList.remove('hidden');
+        });
+        
+        closeCancelModal.addEventListener('click', () => {
+          cancelModal.classList.add('hidden');
+        });
+        
+        confirmCancelBtn.addEventListener('click', async () => {
+          try {
+            const eventRef = doc(db, 'events', eventId);
+            await updateDoc(eventRef, {
+              status: 'cancelled',
+              isPublished: false,
+              updatedAt: serverTimestamp()
+            });
+            showToast('Event cancelled successfully');
+            cancelModal.classList.add('hidden');
+          } catch (error) {
+            console.error('Error cancelling event:', error);
+            showToast('Failed to cancel event', 'error');
+          }
+        });
+      }
+
+      // Set up share modal
+      function setupShareModal(event, eventId) {
+        shareEventBtn.addEventListener('click', () => {
+          eventLink.value = `${window.location.origin}/claim-ticket.html?id=${eventId}`;
+          shareModal.classList.remove('hidden');
+        });
+        
+        closeShareModal.addEventListener('click', () => {
+          shareModal.classList.add('hidden');
+        });
+        
+        copyLinkBtn.addEventListener('click', () => {
+          eventLink.select();
+          document.execCommand('copy');
+          copyLinkBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Copied!';
+          setTimeout(() => {
+            copyLinkBtn.innerHTML = '<i class="fas fa-copy"></i>';
+          }, 2000);
+        });
+        
+        // Set up social sharing links
+        const shareUrl = encodeURIComponent(eventLink.value);
+        const shareText = encodeURIComponent(`Get your free ticket for ${event.name} on M8-Ticketing`);
+        
+        document.getElementById('shareFacebook').href = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
+        document.getElementById('shareTwitter').href = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
+        document.getElementById('shareWhatsapp').href = `https://wa.me/?text=${shareText}%20${shareUrl}`;
+        document.getElementById('shareEmail').href = `mailto:?subject=${event.name}&body=${shareText}%0A%0A${shareUrl}`;
+      }
+
+      // Load attendees with real-time updates
+      function loadAttendees(eventId) {
+        const attendeesRef = collection(db, `events/${eventId}/attendees`);
+        const attendeesQuery = query(attendeesRef, orderBy('timestamp', 'desc'));
+        
+        onSnapshot(attendeesQuery, (snapshot) => {
+          if (snapshot.empty) {
+            attendeeList.innerHTML = `
+              <tr>
+                <td colspan="7" class="py-8 text-center text-gray-500">
+                  <i class="fas fa-users-slash text-3xl mb-2"></i>
+                  <p>No attendees yet</p>
+                  <p class="text-sm mt-2">Share your event to get attendees</p>
                 </td>
-                <td class="py-3 text-right">
-                  <button data-id="${doc.id}" class="checkin-btn ${checkedIn ? 'bg-gray-700 text-gray-400' : 'bg-pink-600 hover:bg-pink-700 text-white'} px-3 py-1 rounded text-sm">
-                    ${checkedIn ? '<i class="fas fa-undo mr-1"></i> Undo' : '<i class="fas fa-check mr-1"></i> Check In'}
-                  </button>
-                </td>
-              `;
-              
-              attendeeList.appendChild(row);
-            });
+              </tr>
+            `;
             
-            // Set up check-in buttons
-            document.querySelectorAll('.checkin-btn').forEach(btn => {
-              btn.addEventListener('click', async () => {
-                const attendeeId = btn.dataset.id;
-                const isCheckedIn = btn.textContent.includes('Undo');
-                
-                try {
-                  const attendeeRef = doc(db, `events/${eventId}/attendees`, attendeeId);
-                  await updateDoc(attendeeRef, {
-                    checkedIn: !isCheckedIn,
-                    checkinTime: isCheckedIn ? null : new Date()
-                  });
-                } catch (error) {
-                  console.error('Error updating check-in status:', error);
-                  alert('Failed to update check-in status. Please try again.');
-                }
-              });
-            });
-          });
+            // Update stats
+            updateStats(0, 0, 0, 0);
+            updateAttendeeSummary(0, 0, 0);
+            updateCheckinStats(0, 0, 0);
+            return;
+          }
           
-          // Set up attendee search
-          attendeeSearch.addEventListener('input', () => {
-            const searchTerm = attendeeSearch.value.toLowerCase();
-            const rows = attendeeList.querySelectorAll('tr');
+          let totalTicketsCount = 0;
+          let checkedInCount = 0;
+          let revenueTotal = 0;
+          
+          attendeeList.innerHTML = '';
+          
+          snapshot.forEach(doc => {
+            const attendee = doc.data();
+            const checkedInStatus = attendee.checkedIn || false;
+            const quantity = attendee.quantity || 1;
             
-            rows.forEach(row => {
-              const name = row.querySelector('td:first-child').textContent.toLowerCase();
-              const email = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-              
-              if (name.includes(searchTerm) || email.includes(searchTerm)) {
-                row.style.display = '';
-              } else {
-                row.style.display = 'none';
-              }
-            });
+            // Calculate stats
+            totalTicketsCount += quantity;
+            if (checkedInStatus) checkedInCount += quantity;
+            if (attendee.ticketPrice) revenueTotal += attendee.ticketPrice * quantity;
+            
+            const checkinTime = attendee.checkinTime ? attendee.checkinTime.toDate() : null;
+            
+            const row = document.createElement('tr');
+            row.className = 'attendee-row border-b border-gray-700';
+            row.dataset.attendeeId = doc.id;
+            row.innerHTML = `
+              <td class="py-3">${attendee.name || 'Not provided'}</td>
+              <td class="py-3">${attendee.email || 'Not provided'}</td>
+              <td class="py-3">${attendee.ticketType || 'Free Ticket'}</td>
+              <td class="py-3">${quantity}</td>
+              <td class="py-3">
+                <span class="badge ${checkedInStatus ? 'badge-success' : 'badge-warning'}">
+                  ${checkedInStatus ? 'Checked In' : 'Not Checked In'}
+                </span>
+              </td>
+              <td class="py-3 text-sm text-gray-400">
+                ${checkinTime ? checkinTime.toLocaleTimeString() : '-'}
+              </td>
+              <td class="py-3 text-right">
+                <button data-id="${doc.id}" class="checkin-btn ${checkedInStatus ? 'bg-gray-700 text-gray-400 hover:bg-yellow-600 hover:text-white' : 'bg-pink-600 hover:bg-pink-700 text-white'} px-3 py-1 rounded text-sm">
+                  ${checkedInStatus ? '<i class="fas fa-undo mr-1"></i> Undo' : '<i class="fas fa-check mr-1"></i> Check In'}
+                </button>
+              </td>
+            `;
+            
+            attendeeList.appendChild(row);
           });
           
-          // Set up refresh button
-          refreshAttendeesBtn.addEventListener('click', () => {
-            loadAttendees(eventId);
-          });
+          // Update stats
+          updateStats(totalTicketsCount, totalTicketsCount, checkedInCount, revenueTotal);
+          updateAttendeeSummary(totalTicketsCount, checkedInCount, totalTicketsCount - checkedInCount);
+          updateCheckinStats(totalTicketsCount, checkedInCount, totalTicketsCount - checkedInCount);
           
-        } catch (error) {
+          // Set up check-in buttons
+          setupCheckinButtons(eventId);
+        }, (error) => {
           console.error('Error loading attendees:', error);
           attendeeList.innerHTML = `
             <tr>
-              <td colspan="5" class="py-8 text-center text-red-500">
+              <td colspan="7" class="py-8 text-center text-red-500">
                 <i class="fas fa-exclamation-triangle mr-2"></i>
                 Failed to load attendees
               </td>
             </tr>
           `;
-        }
-      }
-      
-      // Set up check-in functionality
-      function setupCheckIn(eventId) {
-        checkinSearchBtn.addEventListener('click', async () => {
-          const searchTerm = checkinSearch.value.trim();
+        });
+        
+        // Set up attendee search
+        attendeeSearch.addEventListener('input', () => {
+          const searchTerm = attendeeSearch.value.toLowerCase();
+          const rows = attendeeList.querySelectorAll('tr.attendee-row');
           
-          if (!searchTerm) {
-            alert('Please enter a name, email or ticket ID');
-            return;
-          }
-          
-          // In a real app, you would search your attendees collection
-          // This is a simplified version
+          rows.forEach(row => {
+            const name = row.querySelector('td:first-child').textContent.toLowerCase();
+            const email = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            
+            if (name.includes(searchTerm) || email.includes(searchTerm)) {
+              row.style.display = '';
+            } else {
+              row.style.display = 'none';
+            }
+          });
+        });
+        
+        // Set up refresh button
+        refreshAttendeesBtn.addEventListener('click', () => {
+          showToast('Attendee list refreshed');
+        });
+        
+        // Set up download attendees button
+        downloadAttendeesBtn.addEventListener('click', async () => {
           try {
             const attendeesRef = collection(db, `events/${eventId}/attendees`);
-            const q = query(
-              attendeesRef,
-              where('email', '==', searchTerm)
-            );
+            const attendeesSnap = await getDocs(attendeesRef);
             
-            const querySnapshot = await getDocs(q);
+            const data = [];
+            data.push(['Name', 'Email', 'Ticket Type', 'Quantity', 'Status', 'Check-in Time', 'Ticket ID']);
             
-            if (querySnapshot.empty) {
-              alert('No attendee found with that email');
-              return;
-            }
+            attendeesSnap.forEach(doc => {
+              const a = doc.data();
+              data.push([
+                a.name || 'N/A',
+                a.email || 'N/A',
+                a.ticketType || 'Free',
+                a.quantity || 1,
+                a.checkedIn ? 'Checked In' : 'Not Checked In',
+                a.checkinTime ? a.checkinTime.toDate().toLocaleString() : '-',
+                doc.id
+              ]);
+            });
             
-            const attendee = querySnapshot.docs[0].data();
-            const attendeeId = querySnapshot.docs[0].id;
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, 'Attendees');
+            XLSX.writeFile(wb, `attendees-${eventId}.xlsx`);
             
-            // Show attendee info
-            document.getElementById('checkinName').textContent = attendee.name || 'Not provided';
-            document.getElementById('checkinEmail').textContent = attendee.email || 'Not provided';
-            document.getElementById('checkinTicketType').textContent = attendee.ticketType || 'General Admission';
-            document.getElementById('checkinTicketId').textContent = `ID: ${attendeeId.substring(0, 6).toUpperCase()}`;
-            
-            checkinResults.classList.remove('hidden');
-            
-            // Set up check-in button
-            checkinConfirmBtn.onclick = async () => {
-              try {
-                const attendeeRef = doc(db, `events/${eventId}/attendees`, attendeeId);
-                await updateDoc(attendeeRef, {
-                  checkedIn: true,
-                  checkinTime: new Date()
-                });
-                
-                // Add to recent check-ins
-                const recentCheckin = document.createElement('div');
-                recentCheckin.className = 'flex items-center justify-between bg-gray-700 p-3 rounded-lg';
-                recentCheckin.innerHTML = `
-                  <div class="flex items-center">
-                    <div class="bg-green-500 rounded-full w-2 h-2 mr-3"></div>
-                    <div>
-                      <p class="text-sm font-medium">${attendee.name || 'Attendee'}</p>
-                      <p class="text-xs text-gray-400">just now</p>
-                    </div>
-                  </div>
-                  <span class="text-xs bg-gray-600 px-2 py-1 rounded">${attendee.ticketType || 'General'}</span>
-                `;
-                
-                recentCheckins.prepend(recentCheckin);
-                
-                // Reset form
-                checkinSearch.value = '';
-                checkinResults.classList.add('hidden');
-                
-                // Show success message
-                alert(`${attendee.name || 'Attendee'} checked in successfully!`);
-              } catch (error) {
-                console.error('Error checking in attendee:', error);
-                alert('Failed to check in attendee. Please try again.');
-              }
-            };
+            showToast('Attendees exported successfully');
           } catch (error) {
-            console.error('Error searching for attendee:', error);
-            alert('Error searching for attendee. Please try again.');
+            console.error('Error exporting attendees:', error);
+            showToast('Failed to export attendees', 'error');
           }
         });
       }
+
+      // Update main stats
+      function updateStats(total, reserved, checkedIn, revenue) {
+        totalTickets.textContent = total;
+        reservedTickets.textContent = reserved;
+        checkedInTickets.textContent = checkedIn;
+        totalRevenue.textContent = `₦${revenue.toLocaleString()}`;
+      }
+
+      // Update attendee summary
+      function updateAttendeeSummary(total, checked, pending) {
+        attendeeTotal.textContent = total;
+        attendeeCheckedIn.textContent = checked;
+        attendeePending.textContent = pending;
+        const percentage = total > 0 ? Math.round((checked / total) * 100) : 0;
+        attendeePercentage.textContent = percentage + '%';
+      }
+
+      // Update check-in stats
+      function updateCheckinStats(total, checked, remaining) {
+        checkinTotal.textContent = total;
+        checkinChecked.textContent = checked;
+        checkinRemaining.textContent = remaining;
+      }
+
+      // Set up check-in buttons
+      function setupCheckinButtons(eventId) {
+        document.querySelectorAll('.checkin-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const attendeeId = btn.dataset.id;
+            const isCheckedIn = btn.textContent.includes('Undo');
+            
+            try {
+              const attendeeRef = doc(db, `events/${eventId}/attendees`, attendeeId);
+              await updateDoc(attendeeRef, {
+                checkedIn: !isCheckedIn,
+                checkinTime: isCheckedIn ? null : serverTimestamp()
+              });
+              
+              showToast(`Attendee ${isCheckedIn ? 'check-in undone' : 'checked in'} successfully`);
+            } catch (error) {
+              console.error('Error updating check-in status:', error);
+              showToast('Failed to update check-in status', 'error');
+            }
+          });
+        });
+      }
+
+      // Load recent check-ins
+      function loadRecentCheckins(eventId) {
+        const attendeesRef = collection(db, `events/${eventId}/attendees`);
+        const recentQuery = query(
+          attendeesRef,
+          where('checkedIn', '==', true),
+          orderBy('checkinTime', 'desc')
+        );
+        
+        onSnapshot(recentQuery, (snapshot) => {
+          recentCheckins.innerHTML = '';
+          
+          snapshot.forEach((doc, index) => {
+            if (index >= 5) return; // Only show last 5
+            
+            const attendee = doc.data();
+            const checkinTime = attendee.checkinTime ? attendee.checkinTime.toDate() : new Date();
+            const timeAgo = getTimeAgo(checkinTime);
+            
+            const item = document.createElement('div');
+            item.className = 'flex items-center justify-between bg-gray-700 p-3 rounded-lg';
+            item.innerHTML = `
+              <div class="flex items-center">
+                <div class="bg-green-500 rounded-full w-2 h-2 mr-3"></div>
+                <div>
+                  <p class="text-sm font-medium">${attendee.name || 'Attendee'}</p>
+                  <p class="text-xs text-gray-400">${timeAgo}</p>
+                </div>
+              </div>
+              <span class="text-xs bg-gray-600 px-2 py-1 rounded">${attendee.ticketType || 'Free'}</span>
+            `;
+            
+            recentCheckins.appendChild(item);
+          });
+          
+          if (snapshot.empty) {
+            recentCheckins.innerHTML = '<p class="text-gray-400 text-center py-4">No check-ins yet</p>';
+          }
+        });
+      }
+
+      // Helper function for time ago
+      function getTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + ' years ago';
+        
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + ' months ago';
+        
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + ' days ago';
+        
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + ' hours ago';
+        
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + ' minutes ago';
+        
+        return 'just now';
+      }
+
+      // Set up check-in search
+      checkinSearchBtn.addEventListener('click', async () => {
+        const searchTerm = checkinSearch.value.trim().toLowerCase();
+        
+        if (!searchTerm) {
+          showToast('Please enter a search term', 'error');
+          return;
+        }
+        
+        try {
+          const attendeesRef = collection(db, `events/${eventId}/attendees`);
+          
+          // Search by email (most reliable)
+          const emailQuery = query(attendeesRef, where('email', '==', searchTerm));
+          const emailSnap = await getDocs(emailQuery);
+          
+          if (!emailSnap.empty) {
+            displayCheckinResult(emailSnap.docs[0]);
+            return;
+          }
+          
+          // Search by name (simplified)
+          const allAttendees = await getDocs(attendeesRef);
+          
+          let found = false;
+          allAttendees.forEach(doc => {
+            const attendee = doc.data();
+            if (attendee.name && attendee.name.toLowerCase().includes(searchTerm)) {
+              displayCheckinResult(doc);
+              found = true;
+            }
+          });
+          
+          if (!found) {
+            showToast('No attendee found', 'error');
+          }
+          
+        } catch (error) {
+          console.error('Error searching for attendee:', error);
+          showToast('Error searching for attendee', 'error');
+        }
+      });
+
+      // Display check-in result
+      function displayCheckinResult(doc) {
+        const attendee = doc.data();
+        
+        document.getElementById('checkinName').textContent = attendee.name || 'Not provided';
+        document.getElementById('checkinEmail').textContent = attendee.email || 'Not provided';
+        document.getElementById('checkinTicketType').textContent = attendee.ticketType || 'Free Ticket';
+        document.getElementById('checkinTicketId').textContent = `ID: ${doc.id.substring(0, 8).toUpperCase()}`;
+        
+        checkinResults.classList.remove('hidden');
+        
+        // Set up check-in button
+        checkinConfirmBtn.onclick = async () => {
+          if (attendee.checkedIn) {
+            showToast('Attendee already checked in', 'error');
+            return;
+          }
+          
+          try {
+            const attendeeRef = doc(db, `events/${eventId}/attendees`, doc.id);
+            await updateDoc(attendeeRef, {
+              checkedIn: true,
+              checkinTime: serverTimestamp()
+            });
+            
+            // Reset form
+            checkinSearch.value = '';
+            checkinResults.classList.add('hidden');
+            
+            showToast(`${attendee.name || 'Attendee'} checked in successfully!`);
+          } catch (error) {
+            console.error('Error checking in attendee:', error);
+            showToast('Failed to check in attendee', 'error');
+          }
+        };
+      }
+
+      // Set up delete confirmation
+      deleteEventBtn.addEventListener('click', () => {
+        deleteModal.classList.remove('hidden');
+      });
+      
+      cancelDeleteBtn.addEventListener('click', () => {
+        deleteModal.classList.add('hidden');
+      });
+      
+      confirmDeleteBtn.addEventListener('click', async () => {
+        try {
+          const batch = writeBatch(db);
+          
+          // Delete event
+          batch.delete(doc(db, 'events', eventId));
+          
+          // Delete attendees subcollection
+          const attendeesRef = collection(db, `events/${eventId}/attendees`);
+          const attendeesSnap = await getDocs(attendeesRef);
+          attendeesSnap.forEach(attendeeDoc => {
+            batch.delete(attendeeDoc.ref);
+          });
+          
+          await batch.commit();
+          
+          // Redirect to dashboard
+          window.location.href = 'dashboard.html';
+        } catch (error) {
+          console.error('Error deleting event:', error);
+          showToast('Failed to delete event', 'error');
+          deleteModal.classList.add('hidden');
+        }
+      });
+
+      // Close modals when clicking outside
+      window.addEventListener('click', (e) => {
+        if (e.target === shareModal) {
+          shareModal.classList.add('hidden');
+        }
+        if (e.target === deleteModal) {
+          deleteModal.classList.add('hidden');
+        }
+        if (e.target === cancelModal) {
+          cancelModal.classList.add('hidden');
+        }
+      });
     });
   </script>
 </body>
