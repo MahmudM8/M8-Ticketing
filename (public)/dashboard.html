@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - M8 Ticketing</title>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged,
+      signOut,
+      setPersistence,
+      browserLocalPersistence
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      collection,
+      query,
+      where,
+      onSnapshot,
+      doc,
+      deleteDoc,
+      orderBy
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Enable persistent auth
+    setPersistence(auth, browserLocalPersistence)
+      .catch((error) => console.error("Persistence error:", error));
+
+    window.firebase = {
+      auth,
+      db,
+      functions: {
+        collection,
+        query,
+        where,
+        onSnapshot,
+        doc,
+        deleteDoc,
+        orderBy,
+        onAuthStateChanged,
+        signOut
+      }
+    };
+  </script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .event-card {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      background: #111827;
+      border: 1px solid #1f2937;
+    }
+    .event-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    .loader {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #ec4899;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .event-badge {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+    .action-btn {
+      transition: all 0.2s ease;
+    }
+    .action-btn:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <div class="flex items-center gap-4">
+      <span id="userEmail" class="text-gray-300 hidden md:block"></span>
+      <button id="logoutBtn" class="flex items-center gap-2 text-white hover:text-pink-400 text-sm">
+        <i class="fas fa-sign-out-alt"></i> Log out
+      </button>
+    </div>
+  </header>
+
+  <!-- Dashboard Content -->
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Welcome Section -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8">
+      <div>
+        <h2 class="text-3xl font-bold text-pink-500" id="welcomeMessage">Welcome back!</h2>
+        <p class="text-gray-400">Manage your events and tickets</p>
+      </div>
+      <div class="flex gap-4 mt-4 md:mt-0">
+        <a href="select-event-type.html" class="flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-6 py-3 rounded-full font-semibold">
+          <i class="fas fa-plus"></i> Create Event
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="bg-gray-800 p-6 rounded-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-gray-400">Your Events</p>
+            <h3 class="text-2xl font-bold" id="eventsCount">0</h3>
+          </div>
+          <i class="fas fa-calendar-alt text-pink-500 text-2xl"></i>
+        </div>
+      </div>
+      <div class="bg-gray-800 p-6 rounded-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-gray-400">Tickets Reserved</p>
+            <h3 class="text-2xl font-bold" id="ticketsReserved">0</h3>
+          </div>
+          <i class="fas fa-ticket-alt text-pink-500 text-2xl"></i>
+        </div>
+      </div>
+      <div class="bg-gray-800 p-6 rounded-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-gray-400">Upcoming Events</p>
+            <h3 class="text-2xl font-bold" id="upcomingEvents">0</h3>
+          </div>
+          <i class="fas fa-clock text-pink-500 text-2xl"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Events Section -->
+    <div class="bg-gray-800 p-6 rounded-lg">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-semibold">Your Events</h3>
+        <div class="flex gap-2">
+          <button id="viewAllBtn" class="px-4 py-2 rounded-full bg-pink-600 text-white">All</button>
+          <button id="viewUpcomingBtn" class="px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600">Upcoming</button>
+          <button id="viewPastBtn" class="px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600">Past</button>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loadingState" class="text-center py-12">
+        <div class="loader mx-auto"></div>
+        <p class="text-gray-400 mt-4">Loading your events...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="text-center py-12 hidden">
+        <i class="fas fa-calendar-plus text-5xl text-gray-600 mb-4"></i>
+        <h4 class="text-xl font-semibold mb-2">No events found</h4>
+        <p class="text-gray-400 mb-4">Create your first event to get started</p>
+        <a href="select-event-type.html" class="inline-block bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-full font-semibold">
+          Create Event
+        </a>
+      </div>
+
+      <!-- Error State -->
+      <div id="errorState" class="text-center py-12 hidden">
+        <i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i>
+        <h4 class="text-xl font-semibold mb-2">Error loading events</h4>
+        <p class="text-gray-400 mb-4" id="errorMessage"></p>
+        <button onclick="window.location.reload()" class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-full font-semibold">
+          Try Again
+        </button>
+      </div>
+
+      <!-- Events Grid -->
+      <div id="eventsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+        <!-- Events will be loaded here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global delete function
+    async function deleteEvent(eventId) {
+      if (!confirm('Are you sure you want to delete this event? This cannot be undone.')) return;
+      
+      try {
+        const { doc, deleteDoc } = window.firebase.functions;
+        const { db } = window.firebase;
+        
+        await deleteDoc(doc(db, 'events', eventId));
+        alert('Event deleted successfully!');
+        window.location.reload();
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete event: ' + error.message);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { auth, db, functions } = window.firebase;
+      const { 
+        onAuthStateChanged, 
+        signOut,
+        collection,
+        query,
+        where,
+        onSnapshot,
+        orderBy
+      } = functions;
+
+      // Check auth state with persistence
+      onAuthStateChanged(auth, (user) => {
+        if (!user) {
+          window.location.href = "login.html";
+          return;
+        }
+
+        // Update UI with user info
+        document.getElementById('userEmail').textContent = user.email;
+        document.getElementById('welcomeMessage').textContent = `Welcome back, ${user.email.split('@')[0]}!`;
+
+        // Load events
+        loadEvents(user.uid);
+        
+        // Set up logout button
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+          try {
+            await signOut(auth);
+            window.location.href = "login.html";
+          } catch (error) {
+            alert("Error signing out: " + error.message);
+          }
+        });
+      });
+
+      // Load events from Firestore
+      function loadEvents(userId) {
+        const loadingState = document.getElementById('loadingState');
+        const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
+        const eventsGrid = document.getElementById('eventsGrid');
+        
+        // Show loading state
+        loadingState.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+        errorState.classList.add('hidden');
+        eventsGrid.classList.add('hidden');
+
+        // Query events for this user
+        const eventsQuery = query(
+          collection(db, 'events'),
+          where('userId', '==', userId),
+          where('isPublished', '==', true),
+          orderBy('createdAt', 'desc')
+        );
+
+        // Listen for real-time updates
+        const unsubscribe = onSnapshot(eventsQuery, 
+          (snapshot) => {
+            loadingState.classList.add('hidden');
+            
+            if (snapshot.empty) {
+              emptyState.classList.remove('hidden');
+              updateStats(0, 0, 0);
+              return;
+            }
+
+            let totalEvents = 0;
+            let ticketsReserved = 0;
+            let upcomingEvents = 0;
+            const now = new Date();
+            
+            // Clear previous events
+            eventsGrid.innerHTML = '';
+            
+            snapshot.forEach((doc) => {
+              const event = doc.data();
+              totalEvents++;
+              
+              // Calculate tickets
+              if (event.ticketQuantity) {
+                ticketsReserved += event.ticketQuantity;
+              }
+              
+              // Check if event is upcoming
+              const eventDate = event.datetime ? event.datetime.toDate() : event.createdAt.toDate();
+              const isUpcoming = eventDate > now;
+              if (isUpcoming) {
+                upcomingEvents++;
+              }
+              
+              // Render event card
+              renderEventCard(doc.id, event, isUpcoming);
+            });
+            
+            // Update stats
+            updateStats(totalEvents, ticketsReserved, upcomingEvents);
+            
+            // Show events grid
+            eventsGrid.classList.remove('hidden');
+            
+            // Set up filtering
+            setupEventFilters();
+          }, 
+          (error) => {
+            console.error('Error loading events:', error);
+            loadingState.classList.add('hidden');
+            errorState.classList.remove('hidden');
+            document.getElementById('errorMessage').textContent = error.message;
+          }
+        );
+      }
+
+      // Render a single event card (original style)
+      function renderEventCard(eventId, event, isUpcoming) {
+        const eventsGrid = document.getElementById('eventsGrid');
+        const eventDate = event.datetime ? event.datetime.toDate() : event.createdAt.toDate();
+        const isFree = event.eventType === 'free';
+        
+        const card = document.createElement('div');
+        card.className = 'event-card rounded-xl p-4';
+        card.innerHTML = `
+          <img src="${event.image || 'https://via.placeholder.com/800x400?text=Event+Image'}" 
+               class="w-full h-48 object-cover rounded-lg mb-4" alt="${event.name}">
+          <div class="flex justify-between items-start mb-2">
+            <h3 class="text-xl font-semibold">${event.name}</h3>
+            <div class="flex gap-2">
+              <span class="event-badge ${isFree ? 'bg-green-900 text-green-300' : 'bg-blue-900 text-blue-300'}">
+                ${isFree ? 'Free' : 'Paid'}
+              </span>
+              <span class="event-badge ${isUpcoming ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'}">
+                ${isUpcoming ? 'Upcoming' : 'Past'}
+              </span>
+            </div>
+          </div>
+          <p class="text-gray-400 mb-4">
+            <i class="far fa-calendar-alt mr-2"></i>
+            ${eventDate.toLocaleDateString()} • ${eventDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+          </p>
+          <p class="text-gray-400 mb-4">
+            <i class="fas fa-map-marker-alt mr-2"></i>
+            ${event.location || 'Online'}
+          </p>
+          <div class="flex justify-between items-center">
+            <a href="event-management.html?id=${eventId}" class="action-btn bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-full text-sm">
+              Manage Event
+            </a>
+            <div class="flex gap-2">
+              <a href="edit-event.html?id=${eventId}" class="action-btn text-gray-400 hover:text-pink-500">
+                <i class="fas fa-edit"></i>
+              </a>
+              <button onclick="deleteEvent('${eventId}')" class="action-btn text-gray-400 hover:text-pink-500">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        
+        eventsGrid.appendChild(card);
+      }
+
+      // Update stats counters
+      function updateStats(totalEvents, ticketsReserved, upcomingEvents) {
+        document.getElementById('eventsCount').textContent = totalEvents;
+        document.getElementById('ticketsReserved').textContent = ticketsReserved;
+        document.getElementById('upcomingEvents').textContent = upcomingEvents;
+      }
+
+      // Set up event filtering
+      function setupEventFilters() {
+        const viewAllBtn = document.getElementById('viewAllBtn');
+        const viewUpcomingBtn = document.getElementById('viewUpcomingBtn');
+        const viewPastBtn = document.getElementById('viewPastBtn');
+        const eventCards = document.querySelectorAll('.event-card');
+        
+        viewAllBtn.addEventListener('click', () => {
+          viewAllBtn.classList.add('bg-pink-600', 'text-white');
+          viewAllBtn.classList.remove('bg-gray-700');
+          viewUpcomingBtn.classList.remove('bg-pink-600', 'text-white');
+          viewPastBtn.classList.remove('bg-pink-600', 'text-white');
+          
+          eventCards.forEach(card => {
+            card.style.display = 'block';
+          });
+        });
+        
+        viewUpcomingBtn.addEventListener('click', () => {
+          viewUpcomingBtn.classList.add('bg-pink-600', 'text-white');
+          viewUpcomingBtn.classList.remove('bg-gray-700');
+          viewAllBtn.classList.remove('bg-pink-600', 'text-white');
+          viewPastBtn.classList.remove('bg-pink-600', 'text-white');
+          
+          eventCards.forEach(card => {
+            const isUpcoming = card.querySelector('.event-badge.bg-green-900') !== null;
+            card.style.display = isUpcoming ? 'block' : 'none';
+          });
+        });
+        
+        viewPastBtn.addEventListener('click', () => {
+          viewPastBtn.classList.add('bg-pink-600', 'text-white');
+          viewPastBtn.classList.remove('bg-gray-700');
+          viewAllBtn.classList.remove('bg-pink-600', 'text-white');
+          viewUpcomingBtn.classList.remove('bg-pink-600', 'text-white');
+          
+          eventCards.forEach(card => {
+            const isPast = card.querySelector('.event-badge.bg-gray-700') !== null;
+            card.style.display = isPast ? 'block' : 'none';
+          });
+        });
+      }
+    });
+  </script>
+</body>
+</html>

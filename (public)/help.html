@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Help Center - M8 Ticketing</title>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    window.firebase = {
+      auth,
+      functions: { onAuthStateChanged, signOut }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .faq-item {
+      background: #1e1b3b;
+      transition: all 0.3s ease;
+    }
+    .faq-item:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="p-6 flex justify-between items-center border-b border-gray-700">
+  <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+  <div class="flex items-center gap-4">
+    <a href="login.html" id="loginBtn" class="text-white hover:text-pink-400">Login</a>
+    <a href="signup.html" id="signupBtn" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-full font-semibold">Sign Up</a>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="max-w-7xl mx-auto px-4 py-12">
+  <h1 class="text-4xl font-bold mb-8 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+    Help Center
+  </h1>
+  
+  <div class="grid md:grid-cols-3 gap-8">
+    <div class="md:col-span-2">
+      <div class="bg-gray-800 rounded-xl p-6 mb-8">
+        <h2 class="text-xl font-semibold mb-4">How can we help you?</h2>
+        <div class="relative">
+          <input 
+            type="text" 
+            placeholder="Search help articles..." 
+            class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none pl-10">
+          <i class="fas fa-search absolute left-3 top-4 text-gray-400"></i>
+        </div>
+      </div>
+      
+      <h2 class="text-2xl font-semibold mb-4">Frequently Asked Questions</h2>
+      <div class="space-y-4">
+        <div class="faq-item rounded-xl p-6 cursor-pointer">
+          <div class="flex justify-between items-center">
+            <h3 class="font-semibold">How do I purchase tickets?</h3>
+            <i class="fas fa-chevron-down text-gray-400"></i>
+          </div>
+          <div class="faq-answer mt-4 hidden text-gray-300">
+            <p>To purchase tickets, browse our events, select the one you want, choose your tickets, and proceed to checkout. You'll receive your tickets via email immediately after payment.</p>
+          </div>
+        </div>
+        
+        <div class="faq-item rounded-xl p-6 cursor-pointer">
+          <div class="flex justify-between items-center">
+            <h3 class="font-semibold">What payment methods do you accept?</h3>
+            <i class="fas fa-chevron-down text-gray-400"></i>
+          </div>
+          <div class="faq-answer mt-4 hidden text-gray-300">
+            <p>We accept all major credit/debit cards, bank transfers, and mobile money payments.</p>
+          </div>
+        </div>
+        
+        <div class="faq-item rounded-xl p-6 cursor-pointer">
+          <div class="flex justify-between items-center">
+            <h3 class="font-semibold">Can I get a refund for my tickets?</h3>
+            <i class="fas fa-chevron-down text-gray-400"></i>
+          </div>
+          <div class="faq-answer mt-4 hidden text-gray-300">
+            <p>Refund policies vary by event. Check the event details for specific information. Generally, refunds must be requested at least 48 hours before the event.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div>
+      <div class="bg-gray-800 rounded-xl p-6 sticky top-4">
+        <h2 class="text-xl font-semibold mb-4">Need more help?</h2>
+        <p class="text-gray-300 mb-4">Contact our support team directly:</p>
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-envelope text-pink-500"></i>
+            <span>m8ticketing@gmail.com</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <i class="fas fa-phone text-pink-500"></i>
+            <span>+234 8105919113</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <i class="fas fa-comment-dots text-pink-500"></i>
+            <span>Live Chat (24/7)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="border-t border-gray-700 py-12">
+  
+    <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-500">
+      &copy; 2024 M8-Ticketing. All rights reserved.
+    </div>
+  
+</footer>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const { auth, functions } = window.firebase;
+    const { onAuthStateChanged, signOut } = functions;
+
+    // FAQ toggle functionality
+    document.querySelectorAll('.faq-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const answer = item.querySelector('.faq-answer');
+        const icon = item.querySelector('i');
+        
+        answer.classList.toggle('hidden');
+        icon.classList.toggle('fa-chevron-down');
+        icon.classList.toggle('fa-chevron-up');
+      });
+    });
+
+    // Handle auth state changes
+    if (auth && onAuthStateChanged) {
+      const loginBtn = document.getElementById('loginBtn');
+      const signupBtn = document.getElementById('signupBtn');
+      
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          loginBtn.textContent = 'Dashboard';
+          loginBtn.href = 'dashboard.html';
+          signupBtn.textContent = 'Logout';
+          signupBtn.href = '#';
+          signupBtn.onclick = () => signOut(auth);
+        } else {
+          loginBtn.textContent = 'Login';
+          loginBtn.href = 'login.html';
+          signupBtn.textContent = 'Sign Up';
+          signupBtn.href = 'signup.html';
+          signupBtn.onclick = null;
+        }
+      });
+    }
+  });
+</script>
+</body>
+</html>

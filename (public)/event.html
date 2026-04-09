@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Page - M8 Ticketing</title>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged,
+      setPersistence,
+      browserLocalPersistence,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      doc,
+      getDoc,
+      updateDoc,
+      increment,
+      collection,
+      query,
+      where,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Enable persistent auth
+    setPersistence(auth, browserLocalPersistence)
+      .catch((error) => console.error("Persistence error:", error));
+
+    window.firebase = {
+      auth,
+      db,
+      functions: {
+        doc,
+        getDoc,
+        updateDoc,
+        increment,
+        collection,
+        query,
+        where,
+        getDocs,
+        onAuthStateChanged,
+        signOut
+      }
+    };
+  </script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .event-hero {
+      background: linear-gradient(rgba(13, 12, 29, 0.9), rgba(13, 12, 29, 0.7)), 
+                  var(--event-image) center/cover no-repeat;
+      min-height: 400px;
+    }
+    .ticket-card {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0d0c1d 100%);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      border: 1px solid #3f3f46;
+    }
+    .badge {
+      font-size: 0.8rem;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+    .back-btn {
+      transition: all 0.3s ease;
+    }
+    .back-btn:hover {
+      transform: translateX(-3px);
+    }
+    .organizer-badge {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(236, 72, 153, 0.2);
+      backdrop-filter: blur(10px);
+      border: 1px solid #ec4899;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Preview Mode Banner -->
+  <div id="previewBanner" class="bg-blue-900 text-center py-2 text-sm hidden">
+    <div class="max-w-7xl mx-auto flex items-center justify-center gap-2">
+      <i class="fas fa-eye"></i>
+      <span>You're viewing the public version of your event</span>
+    </div>
+  </div>
+
+  <!-- Header with Back Button -->
+  <header class="bg-gray-900/80 backdrop-blur-sm sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <a href="dashboard.html" class="back-btn text-white hover:text-pink-400 flex items-center gap-2">
+        <i class="fas fa-arrow-left"></i>
+        <span class="hidden sm:inline">Back to Dashboard</span>
+      </a>
+      <div id="userControls" class="hidden">
+        <!-- Will be populated for logged-in users -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Event Hero Section -->
+  <section id="eventHero" class="event-hero flex items-center justify-center py-16 px-4">
+    <div class="max-w-4xl mx-auto text-center">
+      <div id="eventBadge" class="badge inline-block mb-4"></div>
+      <h1 id="eventName" class="text-4xl md:text-5xl font-bold mb-4"></h1>
+      <div class="flex flex-wrap justify-center gap-4 mb-6">
+        <p id="eventDate" class="flex items-center gap-2 text-gray-300">
+          <i class="far fa-calendar-alt"></i>
+          <span id="dateText"></span>
+        </p>
+        <p id="eventLocation" class="flex items-center gap-2 text-gray-300">
+          <i class="fas fa-map-marker-alt"></i>
+          <span id="locationText"></span>
+        </p>
+      </div>
+      <div id="eventActions" class="flex flex-col sm:flex-row gap-4 justify-center">
+        <!-- Will be populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 py-12">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Left Column -->
+      <div class="lg:col-span-2">
+        <!-- About Section -->
+        <section class="bg-gray-900 rounded-xl p-8 mb-8">
+          <h2 class="text-2xl font-bold mb-6 text-pink-500 flex items-center gap-2">
+            <i class="fas fa-info-circle"></i>
+            <span>About This Event</span>
+          </h2>
+          <p id="eventDescription" class="text-gray-300 leading-relaxed"></p>
+        </section>
+
+        <!-- Social Links (Conditional) -->
+        <section id="socialSection" class="bg-gray-900 rounded-xl p-8 mb-8 hidden">
+          <h2 class="text-2xl font-bold mb-6 text-pink-500 flex items-center gap-2">
+            <i class="fas fa-share-alt"></i>
+            <span>Connect With Us</span>
+          </h2>
+          <div class="flex flex-wrap gap-4" id="socialLinksContainer"></div>
+        </section>
+      </div>
+
+      <!-- Right Column (Ticket Card) -->
+      <div class="lg:sticky lg:top-4 lg:self-start">
+        <div id="ticketCard" class="ticket-card rounded-xl p-8">
+          <!-- Will be populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Organizer Tools (Conditional) -->
+    <section id="organizerTools" class="bg-gray-900 rounded-xl p-8 mt-12 hidden">
+      <h2 class="text-2xl font-bold mb-6 text-pink-500 flex items-center gap-2">
+        <i class="fas fa-tools"></i>
+        <span>Organizer Tools</span>
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <a id="editEventBtn" href="#" class="bg-gray-800 hover:bg-gray-700 p-4 rounded-lg transition-all">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-edit text-pink-500 text-xl"></i>
+            <span>Edit Event</span>
+          </div>
+        </a>
+        <a id="manageEventBtn" href="#" class="bg-gray-800 hover:bg-gray-700 p-4 rounded-lg transition-all">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-tachometer-alt text-pink-500 text-xl"></i>
+            <span>Full Management</span>
+          </div>
+        </a>
+        <button id="copyLinkBtn" class="bg-gray-800 hover:bg-gray-700 p-4 rounded-lg transition-all text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-copy text-pink-500 text-xl"></i>
+            <span>Copy Event Link</span>
+          </div>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Floating Organizer Badge -->
+  <div id="organizerBadge" class="organizer-badge hidden">
+    <i class="fas fa-user-shield text-pink-500"></i>
+    <span>Organizer View</span>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { auth, db, functions } = window.firebase;
+      const { 
+        doc, 
+        getDoc, 
+        updateDoc, 
+        increment, 
+        collection, 
+        query, 
+        where, 
+        getDocs,
+        onAuthStateChanged, 
+        signOut 
+      } = functions;
+
+      // Track event view
+      async function trackEventView(eventId) {
+        try {
+          const eventRef = doc(db, 'events', eventId);
+          await updateDoc(eventRef, {
+            'stats.views': increment(1),
+            'updatedAt': new Date()
+          });
+        } catch (error) {
+          console.error("Error tracking view:", error);
+        }
+      }
+
+      // Persistent auth check
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          return;
+        }
+
+        // Populate user controls
+        const userControls = document.getElementById('userControls');
+        userControls.innerHTML = `
+          <div class="flex items-center gap-4">
+            <span class="text-sm text-gray-300">${user.email}</span>
+            <button id="logoutBtn" class="text-sm text-gray-400 hover:text-pink-400">
+              <i class="fas fa-sign-out-alt mr-1"></i> Logout
+            </button>
+          </div>
+        `;
+        userControls.classList.remove('hidden');
+
+        // Set up logout
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+          signOut(auth).then(() => {
+            window.location.href = 'login.html';
+          });
+        });
+
+        // Get event ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        let eventId = urlParams.get('id');
+        
+        // If no ID in URL, check for custom URL
+        if (!eventId && window.location.pathname.includes('/events/')) {
+          const customUrl = window.location.pathname.split('/events/')[1];
+          const eventsQuery = query(
+            collection(db, 'events'),
+            where('customUrl', '==', customUrl),
+            limit(1)
+          );
+          const querySnapshot = await getDocs(eventsQuery);
+          if (!querySnapshot.empty) {
+            eventId = querySnapshot.docs[0].id;
+            // Update URL to include ID for consistency
+            window.history.replaceState({}, '', `/event.html?id=${eventId}`);
+          }
+        }
+
+        if (!eventId) {
+          window.location.href = 'dashboard.html';
+          return;
+        }
+
+        // Track the view
+        trackEventView(eventId);
+
+        // Load event data
+        try {
+          const eventDoc = await getDoc(doc(db, 'events', eventId));
+          if (!eventDoc.exists()) {
+            alert('Event not found');
+            window.location.href = 'dashboard.html';
+            return;
+          }
+
+          const event = eventDoc.data();
+          const isOrganizer = user.uid === event.userId;
+
+          // Show organizer badge if organizer
+          if (isOrganizer) {
+            document.getElementById('previewBanner').classList.remove('hidden');
+            document.getElementById('organizerBadge').classList.remove('hidden');
+          }
+
+          // Set background image if exists
+          if (event.image) {
+            document.getElementById('eventHero').style.setProperty(
+              '--event-image', `url(${event.image})`
+            );
+          }
+
+          // Populate event info
+          document.getElementById('eventName').textContent = event.name;
+          document.getElementById('eventDescription').textContent = 
+            event.description || 'No description provided.';
+          
+          // Set location
+          if (event.location) {
+            document.getElementById('locationText').textContent = event.location;
+          } else {
+            document.getElementById('eventLocation').style.display = 'none';
+          }
+
+          // Set date/time
+          if (event.datetime) {
+            const eventDate = event.datetime.toDate();
+            document.getElementById('dateText').textContent = 
+              eventDate.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+          }
+
+          // Set event type badge
+          const badge = document.getElementById('eventBadge');
+          if (event.eventType === 'free') {
+            badge.className = 'badge bg-green-900/20 text-green-400 border border-green-400';
+            badge.innerHTML = '<i class="fas fa-ticket-alt mr-2"></i> Free Event';
+          } else {
+            badge.className = 'badge bg-blue-900/20 text-blue-400 border border-blue-400';
+            badge.innerHTML = '<i class="fas fa-money-bill-wave mr-2"></i> Paid Event';
+          }
+
+          // Set up social links if they exist
+          if (event.socialLinks && (event.socialLinks.instagram || event.socialLinks.twitter || event.socialLinks.facebook)) {
+            const container = document.getElementById('socialLinksContainer');
+            
+            if (event.socialLinks.instagram) {
+              container.innerHTML += `
+                <a href="${event.socialLinks.instagram}" target="_blank" class="bg-gray-800 hover:bg-gray-700 p-4 rounded-lg flex items-center gap-3 transition-all">
+                  <i class="fab fa-instagram text-pink-500 text-xl"></i>
+                  <span>Instagram</span>
+                </a>
+              `;
+            }
+            
+            if (event.socialLinks.twitter) {
+              container.innerHTML += `
+                <a href="${event.socialLinks.twitter}" target="_blank" class="bg-gray-800 hover:bg-gray-700 p-4 rounded-lg flex items-center gap-3 transition-all">
+                  <i class="fab fa-twitter text-blue-400 text-xl"></i>
+                  <span>Twitter</span>
+                </a>
+              `;
+            }
+            
+            if (event.socialLinks.facebook) {
+              container.innerHTML += `
+                <a href="${event.socialLinks.facebook}" target="_blank" class="bg-gray-800 hover:bg-gray-700 p-4 rounded-lg flex items-center gap-3 transition-all">
+                  <i class="fab fa-facebook text-blue-500 text-xl"></i>
+                  <span>Facebook</span>
+                </a>
+              `;
+            }
+            
+            document.getElementById('socialSection').classList.remove('hidden');
+          }
+
+          // Set up ticket card
+          const ticketCard = document.getElementById('ticketCard');
+          if (event.eventType === 'free') {
+            ticketCard.innerHTML = `
+              <h3 class="text-2xl font-bold mb-6 text-green-400 flex items-center gap-3">
+                <i class="fas fa-ticket-alt"></i>
+                <span>Free Admission</span>
+              </h3>
+              <p class="text-gray-300 mb-6">No payment required. Just claim your ticket!</p>
+              <a href="claim-ticket.html?id=${eventId}" class="block w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg text-center font-semibold transition-all">
+                Get Your Free Ticket
+              </a>
+            `;
+          } else {
+            ticketCard.innerHTML = `
+              <h3 class="text-2xl font-bold mb-6 text-pink-500 flex items-center gap-3">
+                <i class="fas fa-ticket-alt"></i>
+                <span>Tickets</span>
+              </h3>
+              ${event.tickets.map(ticket => `
+                <div class="mb-6 pb-6 border-b border-gray-700 last:border-0 last:mb-0 last:pb-0">
+                  <h4 class="font-semibold text-lg mb-2">${ticket.name}</h4>
+                  <p class="text-2xl font-bold my-3">₦${ticket.price.toLocaleString()}</p>
+                  <p class="text-sm text-gray-400 mb-4">${ticket.quantity - (ticket.sold || 0)} available</p>
+                  <button class="w-full bg-pink-600 hover:bg-pink-700 text-white py-3 rounded-lg font-semibold transition-all">
+                    Buy Ticket
+                  </button>
+                </div>
+              `).join('')}
+            `;
+          }
+
+          // Show draft status if unpublished
+          if (event.status === 'draft' && isOrganizer) {
+            ticketCard.innerHTML = `
+              <div class="bg-yellow-900/20 text-yellow-400 p-3 rounded-lg mb-4 text-center">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                This event is not yet published
+              </div>
+              ${ticketCard.innerHTML}
+            `;
+          }
+
+          // Show organizer tools if user is the creator
+          if (isOrganizer) {
+            document.getElementById('organizerTools').classList.remove('hidden');
+            document.getElementById('editEventBtn').href = `create-free-event.html?edit=${eventId}`;
+            document.getElementById('manageEventBtn').href = `event-management.html?id=${eventId}`;
+            
+            // Set up copy link button with custom URL
+            document.getElementById('copyLinkBtn').addEventListener('click', () => {
+              const eventUrl = event.customUrl 
+                ? `https://m8ticketing.com/events/${event.customUrl}`
+                : `https://m8ticketing.com/event.html?id=${eventId}`;
+              
+              navigator.clipboard.writeText(eventUrl).then(() => {
+                // Show confirmation
+                const originalText = document.getElementById('copyLinkBtn').querySelector('span').textContent;
+                document.getElementById('copyLinkBtn').querySelector('span').textContent = 'Copied!';
+                setTimeout(() => {
+                  document.getElementById('copyLinkBtn').querySelector('span').textContent = originalText;
+                }, 2000);
+              });
+            });
+
+            // Add quick stats for organizers
+            ticketCard.innerHTML += `
+              <div class="mt-6 pt-6 border-t border-gray-700 text-sm">
+                <p class="text-gray-400 mb-2">Organizer Preview</p>
+                <p class="flex justify-between"><span class="text-gray-300">Views:</span> <span class="font-medium">${event.stats?.views || 0}</span></p>
+                <p class="flex justify-between"><span class="text-gray-300">Tickets Reserved:</span> <span class="font-medium">${event.stats?.ticketsSold || 0}</span></p>
+              </div>
+            `;
+          }
+
+        } catch (error) {
+          console.error("Error loading event:", error);
+          alert("Failed to load event details");
+        }
+      });
+    });
+  </script>
+</body>
+</html> 

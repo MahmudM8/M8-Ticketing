@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Details - M8 Ticketing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .ticket-card {
+      transition: all 0.3s ease;
+    }
+    .ticket-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .quantity-btn {
+      transition: background-color 0.2s ease;
+    }
+    .quantity-btn:hover {
+      background-color: #4b5563;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="event.html?id=${eventId}" class="text-white hover:text-pink-400 text-sm flex items-center gap-1">
+      <i class="fas fa-arrow-left"></i> Back to Event
+    </a>
+  </header>
+
+  <div class="max-w-3xl mx-auto my-8 p-4">
+    <!-- Event Info Banner -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-8">
+      <div id="eventBanner" class="flex flex-col md:flex-row gap-6">
+        <div class="w-full md:w-1/3">
+          <img id="eventImage" src="" alt="Event image" class="w-full h-48 object-cover rounded-lg">
+        </div>
+        <div class="w-full md:w-2/3">
+          <h1 id="eventTitle" class="text-2xl font-bold mb-2"></h1>
+          <div class="flex items-center gap-2 text-gray-400 mb-2">
+            <i class="fas fa-calendar-day"></i>
+            <span id="eventDate"></span>
+          </div>
+          <div class="flex items-center gap-2 text-gray-400 mb-4">
+            <i class="fas fa-map-marker-alt"></i>
+            <span id="eventLocation"></span>
+          </div>
+          <p id="eventDescription" class="text-gray-300"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ticket Selection -->
+    <div class="bg-gray-800 rounded-lg p-6 shadow-lg">
+      <h2 class="text-2xl font-bold text-center text-pink-500 mb-6">Select Tickets</h2>
+      
+      <div id="ticketSelection" class="space-y-4">
+        <!-- Loading skeleton -->
+        <div id="loadingSkeleton" class="space-y-4">
+          <div class="bg-gray-700 rounded-lg p-4 h-24 animate-pulse"></div>
+          <div class="bg-gray-700 rounded-lg p-4 h-24 animate-pulse"></div>
+        </div>
+      </div>
+      
+      <!-- Order Summary -->
+      <div id="paymentSummary" class="mt-8 bg-gray-900 p-6 rounded-lg hidden">
+        <h3 class="text-xl font-semibold mb-4 text-pink-500 flex items-center gap-2">
+          <i class="fas fa-receipt"></i> Order Summary
+        </h3>
+        <div id="summaryDetails" class="space-y-2"></div>
+        <div class="mt-4 pt-4 border-t border-gray-700 space-y-2">
+          <div class="flex justify-between text-gray-400">
+            <span>Subtotal:</span>
+            <span id="subtotalAmount">₦0</span>
+          </div>
+          <div class="flex justify-between text-gray-400">
+            <span>Service Fees:</span>
+            <span id="feeAmount">₦0</span>
+          </div>
+          <div class="flex justify-between font-semibold text-lg mt-2">
+            <span>Total:</span>
+            <span id="totalAmount">₦0</span>
+          </div>
+        </div>
+        <button id="proceedToPayment" class="w-full mt-6 bg-pink-600 hover:bg-pink-700 text-white px-6 py-3 rounded-full font-semibold flex items-center justify-center gap-2">
+          <span>Proceed to Payment</span>
+          <i class="fas fa-lock"></i>
+        </button>
+        <p class="text-xs text-gray-500 text-center mt-2">
+          <i class="fas fa-shield-alt"></i> Secure payment processed by our partners
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore, 
+      doc, 
+      getDoc, 
+      collection, 
+      addDoc,
+      runTransaction
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    
+    // Initialize Firebase (replace with your config)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+    
+    const auth = getAuth();
+    const db = getFirestore();
+    
+    // Get event ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const eventId = urlParams.get('id');
+    
+    let eventData;
+    let selectedTickets = {};
+    
+    async function loadEvent() {
+      try {
+        const eventDoc = await getDoc(doc(db, 'events', eventId));
+        if (!eventDoc.exists()) {
+          throw new Error('Event not found');
+        }
+        
+        eventData = eventDoc.data();
+        renderEventInfo();
+        renderTicketOptions();
+      } catch (error) {
+        console.error('Error loading event:', error);
+        alert('Error loading event details. Please try again.');
+        window.location.href = 'index.html';
+      }
+    }
+    
+    function renderEventInfo() {
+      document.getElementById('eventTitle').textContent = eventData.name;
+      document.getElementById('eventDescription').textContent = eventData.description;
+      
+      // Format date
+      const eventDate = new Date(eventData.datetime);
+      document.getElementById('eventDate').textContent = 
+        eventDate.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      
+      document.getElementById('eventLocation').textContent = eventData.location;
+      
+      if (eventData.image) {
+        document.getElementById('eventImage').src = eventData.image;
+      }
+    }
+    
+    function calculateTicketPrice(basePrice) {
+      if (!eventData.feeStructure) {
+        // Default fee structure if not defined
+        return {
+          basePrice: basePrice,
+          fee: Math.min(Math.max(basePrice * 0.1 + 500, 200), 2000),
+          total: basePrice + Math.min(Math.max(basePrice * 0.1 + 500, 200), 2000)
+        };
+      }
+      
+      const percentageFee = basePrice * (eventData.feeStructure.percentage / 100);
+      const totalFee = Math.min(
+        Math.max(percentageFee + eventData.feeStructure.fixed, eventData.feeStructure.min),
+        eventData.feeStructure.max
+      );
+      return {
+        basePrice: basePrice,
+        fee: totalFee,
+        total: basePrice + totalFee
+      };
+    }
+    
+    function renderTicketOptions() {
+      const container = document.getElementById('ticketSelection');
+      
+      // Remove loading skeleton
+      document.getElementById('loadingSkeleton').remove();
+      
+      if (!eventData.tickets || eventData.tickets.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8">
+            <i class="fas fa-ticket-alt text-4xl text-gray-600 mb-3"></i>
+            <p class="text-gray-400">No tickets available for this event</p>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = '';
+      
+      eventData.tickets.forEach((ticket, index) => {
+        if (ticket.remaining <= 0) {
+          container.innerHTML += `
+            <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 opacity-75">
+              <div class="flex justify-between items-center">
+                <div>
+                  <h3 class="font-semibold text-gray-400">${ticket.name}</h3>
+                  <p class="text-sm text-gray-500">${ticket.description || ''}</p>
+                </div>
+                <span class="bg-gray-700 text-gray-400 px-2 py-1 rounded text-sm">SOLD OUT</span>
+              </div>
+            </div>
+          `;
+          return;
+        }
+        
+        const priceDetails = calculateTicketPrice(ticket.price);
+        
+        const ticketHtml = `
+          <div class="ticket-card bg-gray-900 p-4 rounded-lg border border-gray-700">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div class="flex-1">
+                <h3 class="font-semibold">${ticket.name}</h3>
+                ${ticket.description ? `<p class="text-sm text-gray-400 mt-1">${ticket.description}</p>` : ''}
+                <div class="mt-2">
+                  <span class="text-pink-500 font-medium">₦${priceDetails.total.toLocaleString()}</span>
+                  <span class="text-sm text-gray-500 ml-2">(₦${ticket.price.toLocaleString()} + ₦${priceDetails.fee.toLocaleString()} fee)</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                  ${ticket.remaining} ${ticket.isLimited ? 'remaining' : 'available'}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="decrease-ticket quantity-btn w-8 h-8 bg-gray-700 rounded flex items-center justify-center" data-index="${index}">
+                  <i class="fas fa-minus text-sm"></i>
+                </button>
+                <span id="ticket-count-${index}" class="w-8 text-center">0</span>
+                <button class="increase-ticket quantity-btn w-8 h-8 bg-gray-700 rounded flex items-center justify-center" data-index="${index}">
+                  <i class="fas fa-plus text-sm"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        container.innerHTML += ticketHtml;
+      });
+      
+      // Add event listeners
+      document.querySelectorAll('.increase-ticket').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = e.target.closest('button').getAttribute('data-index');
+          const ticket = eventData.tickets[index];
+          const currentCount = selectedTickets[index] || 0;
+          
+          if (currentCount < ticket.remaining) {
+            selectedTickets[index] = currentCount + 1;
+            document.getElementById(`ticket-count-${index}`).textContent = selectedTickets[index];
+            updateSummary();
+          } else {
+            alert(`Only ${ticket.remaining} ${ticket.name} tickets remaining!`);
+          }
+        });
+      });
+      
+      document.querySelectorAll('.decrease-ticket').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = e.target.closest('button').getAttribute('data-index');
+          const currentCount = selectedTickets[index] || 0;
+          
+          if (currentCount > 0) {
+            selectedTickets[index] = currentCount - 1;
+            document.getElementById(`ticket-count-${index}`).textContent = selectedTickets[index];
+            updateSummary();
+          }
+        });
+      });
+    }
+    
+    function updateSummary() {
+      const summaryContainer = document.getElementById('summaryDetails');
+      const paymentSummary = document.getElementById('paymentSummary');
+      let totalBase = 0;
+      let totalFees = 0;
+      let totalAmount = 0;
+      let hasTickets = false;
+      
+      summaryContainer.innerHTML = '';
+      
+      Object.entries(selectedTickets).forEach(([index, quantity]) => {
+        if (quantity > 0) {
+          hasTickets = true;
+          const ticket = eventData.tickets[index];
+          const priceDetails = calculateTicketPrice(ticket.price);
+          
+          const ticketTotal = quantity * priceDetails.total;
+          const ticketBase = quantity * ticket.price;
+          const ticketFees = quantity * priceDetails.fee;
+          
+          totalBase += ticketBase;
+          totalFees += ticketFees;
+          totalAmount += ticketTotal;
+          
+          summaryContainer.innerHTML += `
+            <div class="flex justify-between">
+              <span>${quantity}x ${ticket.name}</span>
+              <span>₦${ticketTotal.toLocaleString()}</span>
+            </div>
+          `;
+        }
+      });
+      
+      if (hasTickets) {
+        paymentSummary.classList.remove('hidden');
+        document.getElementById('subtotalAmount').textContent = `₦${totalBase.toLocaleString()}`;
+        document.getElementById('feeAmount').textContent = `₦${totalFees.toLocaleString()}`;
+        document.getElementById('totalAmount').textContent = `₦${totalAmount.toLocaleString()}`;
+      } else {
+        paymentSummary.classList.add('hidden');
+      }
+    }
+    
+    // Proceed to payment
+    document.getElementById('proceedToPayment').addEventListener('click', async () => {
+      const user = auth.currentUser;
+      if (!user) {
+        alert('Please log in to purchase tickets');
+        window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
+        return;
+      }
+      
+      try {
+        // Validate at least one ticket selected
+        const selectedCount = Object.values(selectedTickets).reduce((sum, qty) => sum + qty, 0);
+        if (selectedCount === 0) {
+          throw new Error('Please select at least one ticket');
+        }
+        
+        // Prepare order data
+        const orderItems = [];
+        Object.entries(selectedTickets).forEach(([index, quantity]) => {
+          if (quantity > 0) {
+            const ticket = eventData.tickets[index];
+            const priceDetails = calculateTicketPrice(ticket.price);
+            
+            orderItems.push({
+              ticketId: index,
+              name: ticket.name,
+              quantity,
+              unitPrice: ticket.price,
+              unitFee: priceDetails.fee,
+              totalPrice: quantity * priceDetails.total,
+              remaining: ticket.remaining - quantity
+            });
+          }
+        });
+        
+        // Create order in a transaction to ensure ticket availability
+        await runTransaction(db, async (transaction) => {
+          // First verify ticket availability
+          const eventRef = doc(db, 'events', eventId);
+          const eventSnap = await transaction.get(eventRef);
+          
+          if (!eventSnap.exists()) {
+            throw new Error('Event no longer exists');
+          }
+          
+          const currentEventData = eventSnap.data();
+          orderItems.forEach(item => {
+            const ticket = currentEventData.tickets[item.ticketId];
+            if (ticket.remaining < item.quantity) {
+              throw new Error(`Only ${ticket.remaining} ${ticket.name} tickets remaining!`);
+            }
+          });
+          
+          // Create order document
+          const orderRef = doc(collection(db, 'orders'));
+          transaction.set(orderRef, {
+            userId: user.uid,
+            eventId: eventId,
+            eventName: eventData.name,
+            items: orderItems,
+            totalAmount: orderItems.reduce((sum, item) => sum + item.totalPrice, 0),
+            totalFees: orderItems.reduce((sum, item) => sum + (item.unitFee * item.quantity), 0),
+            status: 'pending',
+            createdAt: new Date(),
+            paymentMethod: 'paystack',
+            customerEmail: user.email
+          });
+          
+          // Update ticket quantities
+          const updatedTickets = [...currentEventData.tickets];
+          orderItems.forEach(item => {
+            updatedTickets[item.ticketId].remaining -= item.quantity;
+            updatedTickets[item.ticketId].sold += item.quantity;
+          });
+          
+          transaction.update(eventRef, { tickets: updatedTickets });
+          
+          // Redirect to payment page
+          window.location.href = `payment.html?orderId=${orderRef.id}`;
+        });
+        
+      } catch (error) {
+        console.error('Error creating order:', error);
+        alert(`Error: ${error.message}`);
+        // Reload event data in case availability changed
+        loadEvent();
+      }
+    });
+    
+    // Initialize
+    onAuthStateChanged(auth, (user) => {
+      loadEvent();
+    });
+  </script>
+</body>
+</html>

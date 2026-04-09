@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claim Your Ticket - M8 Ticketing</title>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged,
+      setPersistence,
+      browserLocalPersistence
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      doc,
+      getDoc,
+      updateDoc,
+      increment,
+      collection,
+      addDoc,
+      runTransaction,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    setPersistence(auth, browserLocalPersistence)
+      .catch((error) => console.error("Persistence error:", error));
+
+    window.firebase = {
+      auth,
+      db,
+      functionsSDK: {
+        doc,
+        getDoc,
+        updateDoc,
+        increment,
+        collection,
+        addDoc,
+        runTransaction,
+        serverTimestamp,
+        onAuthStateChanged
+      }
+    };
+  </script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- QR Code Library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <!-- html2canvas for ticket download -->
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .ticket-card {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0d0c1d 100%);
+      border: 1px solid #3f3f46;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .ticket-divider {
+      position: relative;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, #4ade80 50%, transparent 100%);
+      margin: 1.5rem 0;
+    }
+    .ticket-divider::before,
+    .ticket-divider::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #0d0c1d;
+      border: 1px solid #4ade80;
+      top: -8px;
+    }
+    .ticket-divider::before {
+      left: -8px;
+    }
+    .ticket-divider::after {
+      right: -8px;
+    }
+    .loader {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #4ade80;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .success-message {
+      background: rgba(74, 222, 128, 0.2);
+      border-left: 4px solid #4ade80;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .error-message {
+      background: rgba(239, 68, 68, 0.2);
+      border-left: 4px solid #ef4444;
+    }
+    #ticketQR {
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 180px;
+      height: 180px;
+    }
+    .ticket-preview {
+      background: white;
+      color: black;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 400px;
+      margin: 0 auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    #qrCanvas {
+      width: 100%;
+      height: auto;
+    }
+    .fa-spinner {
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Header -->
+  <header class="p-6 flex justify-between items-center border-b border-gray-700">
+    <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+    <a href="dashboard.html" class="text-white hover:text-pink-400 text-sm flex items-center gap-1">
+      <i class="fas fa-arrow-left"></i> Back to Events
+    </a>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-3xl mx-auto px-4 py-8">
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-12">
+      <div class="loader mx-auto"></div>
+      <p class="text-gray-400 mt-4">Loading event details...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="error-message p-4 rounded-r-lg mb-6 hidden">
+      <div class="flex items-center">
+        <i class="fas fa-exclamation-circle text-red-400 text-xl mr-2"></i>
+        <p id="errorMessage" class="text-red-400">Error loading event</p>
+      </div>
+    </div>
+
+    <!-- Event Info -->
+    <div id="eventInfo" class="hidden">
+      <div class="flex flex-col md:flex-row gap-6 mb-8">
+        <div class="md:w-1/3">
+          <img id="eventImage" src="" alt="Event image" class="w-full rounded-lg">
+        </div>
+        <div class="md:w-2/3">
+          <h1 id="eventName" class="text-2xl font-bold mb-2"></h1>
+          <div class="flex items-center gap-2 mb-4">
+            <span id="eventBadge" class="text-xs font-semibold px-2 py-1 rounded-full"></span>
+            <span id="eventDate" class="text-gray-400 text-sm"></span>
+          </div>
+          <p id="eventLocation" class="text-gray-300 mb-4"></p>
+          <p id="eventDescription" class="text-gray-400"></p>
+        </div>
+      </div>
+
+      <!-- Ticket Claim Form -->
+      <div id="ticketForm" class="ticket-card rounded-xl p-6 mb-8">
+        <h2 class="text-xl font-bold mb-4 text-green-400">
+          <i class="fas fa-ticket-alt mr-2"></i> Claim Your Free Ticket
+        </h2>
+        
+        <!-- Tickets Left Counter -->
+        <div id="ticketsLeft" class="bg-gray-800 p-3 rounded-lg mb-4 text-center">
+          <span class="text-gray-400">Tickets Available: </span>
+          <span id="availableTickets" class="text-green-400 font-bold">0</span>
+        </div>
+        
+        <!-- Sold Out Message -->
+        <div id="soldOutMessage" class="bg-red-900/20 text-red-400 p-3 rounded-lg mb-4 text-center hidden">
+          <i class="fas fa-times-circle mr-2"></i>
+          <span>All tickets have been claimed</span>
+        </div>
+        
+        <!-- Success Message -->
+        <div id="successMessage" class="success-message p-4 mb-6 rounded-r-lg hidden">
+          <div class="flex items-center">
+            <i class="fas fa-check-circle text-green-400 text-xl mr-2"></i>
+            <p class="text-green-400">Ticket claimed successfully!</p>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <form id="claimForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">Full Name*</label>
+            <input type="text" id="attendeeName" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" required>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-semibold mb-1">Email Address*</label>
+            <input type="email" id="attendeeEmail" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700" required>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-semibold mb-1">Quantity (Max <span id="maxQuantity">2</span>)*</label>
+            <select id="ticketQuantity" class="w-full bg-gray-800 px-4 py-3 rounded-lg border border-gray-700 appearance-none" required>
+              <option value="1">1 Ticket</option>
+              <option value="2">2 Tickets</option>
+            </select>
+          </div>
+          
+          <button type="submit" id="claimBtn" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition-all">
+            <span id="claimText"><i class="fas fa-ticket-alt mr-2"></i> Claim Ticket</span>
+            <span id="claimLoader" class="hidden">
+              <span class="loader"></span> Processing...
+            </span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Ticket Display (After Claim) -->
+      <div id="ticketDisplay" class="ticket-card rounded-xl p-6 hidden">
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-bold text-green-400 mb-2">Your Ticket</h2>
+          <p class="text-gray-400">Present this at the event entrance</p>
+        </div>
+        
+        <div id="ticketQR">
+          <canvas id="qrCanvas"></canvas>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <p class="text-sm text-gray-400 mb-1">Event</p>
+            <p id="ticketEventName" class="font-semibold"></p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-400 mb-1">Date & Time</p>
+            <p id="ticketEventDate" class="font-semibold"></p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-400 mb-1">Location</p>
+            <p id="ticketEventLocation" class="font-semibold"></p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-400 mb-1">Ticket Holder</p>
+            <p id="ticketHolderName" class="font-semibold"></p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-400 mb-1">Ticket Number</p>
+            <p id="ticketNumber" class="font-semibold"></p>
+          </div>
+        </div>
+        
+        <div class="ticket-divider"></div>
+        
+        <div class="flex flex-col sm:flex-row justify-center gap-4">
+          <button id="downloadTicketBtn" class="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-all">
+            <i class="fas fa-download mr-2"></i> Download Ticket
+          </button>
+          <button id="emailTicketBtn" class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-3 rounded-lg font-semibold transition-all">
+            <i class="fas fa-envelope mr-2"></i> Email Ticket
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Hidden ticket template for download -->
+  <div id="ticketTemplate" class="hidden">
+    <div class="ticket-preview">
+      <div class="text-center mb-4">
+        <h2 class="text-xl font-bold mb-2">M8 Ticketing</h2>
+        <p class="text-sm text-gray-600">Present this ticket at the event entrance</p>
+      </div>
+      
+      <div class="flex justify-center mb-4">
+        <canvas id="downloadQR" width="180" height="180"></canvas>
+      </div>
+      
+      <div class="space-y-3 mb-4">
+        <div>
+          <p class="text-xs text-gray-500">Event</p>
+          <p id="templateEventName" class="font-semibold"></p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Date & Time</p>
+          <p id="templateEventDate" class="font-semibold"></p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Location</p>
+          <p id="templateEventLocation" class="font-semibold"></p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Ticket Holder</p>
+          <p id="templateHolderName" class="font-semibold"></p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Ticket Number</p>
+          <p id="templateTicketNumber" class="font-semibold"></p>
+        </div>
+      </div>
+      
+      <div class="text-center mt-6">
+        <p class="text-xs text-gray-500">Generated on: <span id="templateGeneratedDate"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { auth, db, functionsSDK } = window.firebase;
+      const { 
+        doc, 
+        getDoc, 
+        updateDoc, 
+        increment, 
+        collection, 
+        addDoc,
+        runTransaction,
+        serverTimestamp,
+        onAuthStateChanged
+      } = functionsSDK;
+
+      // Track last email time for rate limiting
+      let lastEmailTime = 0;
+      
+      // Current ticket data
+      let currentTicket = {
+        eventId: '',
+        eventName: '',
+        eventDate: '',
+        eventLocation: '',
+        attendeeName: '',
+        attendeeEmail: '',
+        qrCodeData: '',
+        ticketNumber: ''
+      };
+
+      // Get event ID from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const eventId = urlParams.get('id');
+      
+      if (!eventId) {
+        showError('Invalid event link');
+        return;
+      }
+
+      // Format date for display
+      function formatDate(date) {
+        if (!date) return 'Date not specified';
+        const d = date.toDate ? date.toDate() : new Date(date);
+        return d.toLocaleString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+
+      // Generate QR Code
+      async function generateQRCode(elementId, text) {
+        return new Promise((resolve) => {
+          const canvas = document.getElementById(elementId);
+          QRCode.toCanvas(canvas, text, { width: 180 }, (error) => {
+            if (error) {
+              console.error('QR code error:', error);
+              canvas.getContext('2d').fillText('QR Code Error', 10, 20);
+            }
+            resolve();
+          });
+        });
+      }
+
+      // Load event data
+      async function loadEvent() {
+        try {
+          const eventDoc = await getDoc(doc(db, 'events', eventId));
+          
+          if (!eventDoc.exists()) {
+            showError('Event not found');
+            return null;
+          }
+
+          const event = eventDoc.data();
+          
+          if (!event.isPublished || event.status === 'draft') {
+            showError('This event is not currently available');
+            return null;
+          }
+
+          const eventEnd = event.endTime?.toDate() || event.datetime?.toDate();
+          if (eventEnd && eventEnd < new Date()) {
+            showError('This event has already ended');
+            return null;
+          }
+
+          return {
+            id: eventDoc.id,
+            ...event,
+            datetime: event.datetime,
+            endTime: event.endTime
+          };
+        } catch (error) {
+          console.error('Error loading event:', error);
+          showError('Failed to load event details');
+          return null;
+        }
+      }
+
+      // Display event data
+      async function displayEvent(event) {
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('eventInfo').classList.remove('hidden');
+        
+        document.getElementById('eventName').textContent = event.name;
+        document.getElementById('eventDescription').textContent = event.description || 'No description provided';
+        document.getElementById('eventLocation').textContent = event.location || 'Online Event';
+        document.getElementById('eventImage').src = event.image || 'https://via.placeholder.com/800x400?text=Event+Image';
+        document.getElementById('eventImage').alt = event.name;
+        
+        if (event.datetime) {
+          document.getElementById('eventDate').textContent = formatDate(event.datetime);
+        }
+        
+        const badge = document.getElementById('eventBadge');
+        badge.className = 'text-xs font-semibold px-2 py-1 rounded-full ' + 
+          (event.eventType === 'free' ? 'bg-green-900/20 text-green-400 border border-green-400' : 'bg-blue-900/20 text-blue-400 border border-blue-400');
+        badge.innerHTML = event.eventType === 'free' 
+          ? '<i class="fas fa-ticket-alt mr-1"></i> Free Event' 
+          : '<i class="fas fa-money-bill-wave mr-1"></i> Paid Event';
+        
+        const ticketsAvailable = (event.ticketQuantity || 0) - (event.ticketsSold || 0);
+        document.getElementById('availableTickets').textContent = ticketsAvailable;
+        
+        // Set max quantity based on available tickets
+        const maxQty = Math.min(2, ticketsAvailable);
+        document.getElementById('maxQuantity').textContent = maxQty;
+        
+        const quantitySelect = document.getElementById('ticketQuantity');
+        quantitySelect.innerHTML = '';
+        for (let i = 1; i <= maxQty; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+          option.textContent = i + (i === 1 ? ' Ticket' : ' Tickets');
+          quantitySelect.appendChild(option);
+        }
+        
+        if (ticketsAvailable <= 0) {
+          document.getElementById('soldOutMessage').classList.remove('hidden');
+          document.getElementById('claimForm').classList.add('hidden');
+          document.getElementById('ticketsLeft').classList.add('hidden');
+        }
+      }
+
+      // Show error message
+      function showError(message) {
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('errorState').classList.remove('hidden');
+        document.getElementById('errorMessage').textContent = message;
+      }
+
+      // Claim ticket function
+      async function claimTicket(event, name, email, quantity) {
+        try {
+          let result = null;
+          
+          await runTransaction(db, async (transaction) => {
+            const eventRef = doc(db, 'events', event.id);
+            const eventDoc = await transaction.get(eventRef);
+            
+            if (!eventDoc.exists()) {
+              throw new Error("Event no longer exists");
+            }
+            
+            const currentEvent = eventDoc.data();
+            const ticketsAvailable = (currentEvent.ticketQuantity || 0) - (currentEvent.ticketsSold || 0);
+            
+            if (ticketsAvailable < quantity) {
+              throw new Error(`Only ${ticketsAvailable} tickets remaining`);
+            }
+            
+            // Update event tickets sold
+            transaction.update(eventRef, {
+              'ticketsSold': increment(quantity),
+              'updatedAt': serverTimestamp()
+            });
+            
+            // Create tickets in attendees subcollection
+            const tickets = [];
+            for (let i = 0; i < quantity; i++) {
+              const ticketNumber = `${event.id.slice(0, 4)}-${Date.now().toString().slice(-6)}-${i+1}`;
+              const qrCodeData = `${window.location.origin}/validate-ticket?id=${event.id}&ticket=${ticketNumber}`;
+              
+              const attendeeRef = doc(collection(db, `events/${event.id}/attendees`));
+              const ticketData = {
+                name: name,
+                email: email,
+                ticketType: 'free',
+                quantity: 1,
+                ticketNumber: ticketNumber,
+                qrCodeData: qrCodeData,
+                timestamp: serverTimestamp(),
+                checkedIn: false,
+                eventId: event.id,
+                eventName: event.name,
+                eventDate: event.datetime || serverTimestamp(),
+                eventLocation: event.location || 'Online'
+              };
+              
+              transaction.set(attendeeRef, ticketData);
+              tickets.push({ id: attendeeRef.id, ...ticketData });
+            }
+            
+            result = tickets[0]; // Return first ticket for display
+          });
+          
+          return result;
+        } catch (error) {
+          console.error('Error claiming ticket:', error);
+          throw error;
+        }
+      }
+
+      // Send ticket via email (mock function - implement with actual email service)
+      async function sendTicketEmail() {
+        // This is a mock function - implement with your email service
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            console.log('Email sent to:', currentTicket.attendeeEmail);
+            resolve(true);
+          }, 1000);
+        });
+      }
+
+      // Display claimed ticket
+      async function displayTicket(event, name, email, ticket) {
+        document.getElementById('ticketForm').classList.add('hidden');
+        document.getElementById('ticketDisplay').classList.remove('hidden');
+        
+        document.getElementById('ticketEventName').textContent = event.name;
+        document.getElementById('ticketHolderName').textContent = name;
+        document.getElementById('ticketNumber').textContent = ticket.ticketNumber;
+        
+        document.getElementById('ticketEventDate').textContent = formatDate(event.datetime);
+        document.getElementById('ticketEventLocation').textContent = event.location || 'Online Event';
+        
+        // Generate QR Code
+        await generateQRCode('qrCanvas', ticket.qrCodeData);
+        
+        // Set up download button
+        document.getElementById('downloadTicketBtn').addEventListener('click', async () => {
+          try {
+            document.getElementById('templateEventName').textContent = event.name;
+            document.getElementById('templateHolderName').textContent = name;
+            document.getElementById('templateEventLocation').textContent = event.location || 'Online Event';
+            document.getElementById('templateTicketNumber').textContent = ticket.ticketNumber;
+            document.getElementById('templateEventDate').textContent = formatDate(event.datetime);
+            document.getElementById('templateGeneratedDate').textContent = new Date().toLocaleDateString();
+            
+            // Generate QR code for download
+            await generateQRCode('downloadQR', ticket.qrCodeData);
+            
+            const ticketElement = document.getElementById('ticketTemplate');
+            
+            // Use html2canvas to create the image
+            const canvas = await html2canvas(ticketElement, {
+              backgroundColor: null,
+              scale: 2,
+              logging: false,
+              useCORS: true
+            });
+            
+            // Create download link
+            const link = document.createElement('a');
+            const fileName = `M8-Ticket-${ticket.ticketNumber}.png`;
+            link.download = fileName;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (error) {
+            console.error('Error generating ticket:', error);
+            alert('Failed to generate ticket. Please try again.');
+          }
+        });
+        
+        // Set up email button
+        document.getElementById('emailTicketBtn').addEventListener('click', async () => {
+          const btn = document.getElementById('emailTicketBtn');
+          const now = Date.now();
+          
+          const EMAIL_COOLDOWN = 30000; // 30 seconds
+          
+          // Rate limiting check
+          if (now - lastEmailTime < EMAIL_COOLDOWN) {
+            alert(`Please wait ${Math.ceil((EMAIL_COOLDOWN - (now - lastEmailTime))/1000)} seconds before sending another email`);
+            return;
+          }
+          
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Sending...';
+          
+          try {
+            const success = await sendTicketEmail();
+            if (success) {
+              lastEmailTime = Date.now();
+              alert('Ticket sent to your email successfully! Check your inbox (and spam folder).');
+            }
+          } catch (error) {
+            console.error('Error sending email:', error);
+            alert('Failed to send email. Please try again later.');
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-envelope mr-2"></i> Email Ticket';
+          }
+        });
+      }
+
+      // Main execution flow
+      try {
+        const event = await loadEvent();
+        if (event) {
+          await displayEvent(event);
+          
+          document.getElementById('claimForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('attendeeName').value.trim();
+            const email = document.getElementById('attendeeEmail').value.trim();
+            const quantity = parseInt(document.getElementById('ticketQuantity').value);
+            
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+              alert('Please enter a valid email address');
+              return;
+            }
+            
+            if (name.length < 2) {
+              alert('Please enter your full name');
+              return;
+            }
+            
+            document.getElementById('claimText').classList.add('hidden');
+            document.getElementById('claimLoader').classList.remove('hidden');
+            document.getElementById('claimBtn').disabled = true;
+            
+            try {
+              const ticket = await claimTicket(event, name, email, quantity);
+              if (ticket) {
+                document.getElementById('successMessage').classList.remove('hidden');
+                setTimeout(() => {
+                  displayTicket(event, name, email, ticket);
+                }, 1500);
+              }
+            } catch (error) {
+              console.error('Ticket claim error:', error);
+              let errorMessage = 'Failed to claim ticket';
+              
+              if (error.message.includes('tickets remaining')) {
+                errorMessage = error.message;
+              } else {
+                errorMessage = 'An error occurred. Please try again.';
+              }
+              
+              alert(errorMessage);
+              
+              document.getElementById('claimText').classList.remove('hidden');
+              document.getElementById('claimLoader').classList.add('hidden');
+              document.getElementById('claimBtn').disabled = false;
+            }
+          });
+        }
+      } catch (error) {
+        showError('An unexpected error occurred');
+      }
+    });
+  </script>
+</body>
+</html>

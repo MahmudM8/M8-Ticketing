@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Careers - M8 Ticketing</title>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { 
+      getFirestore,
+      collection,
+      addDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyDil9hWASKjGRRysjnu2PnRgWFsD86JCUw",
+      authDomain: "m8-ticketting2.firebaseapp.com",
+      projectId: "m8-ticketting2",
+      storageBucket: "m8-ticketting2.appspot.com",
+      messagingSenderId: "832517378869",
+      appId: "1:832517378869:web:5ab0493bd62f330a15f27c",
+      measurementId: "G-NN9TMZY90N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebase = {
+      auth,
+      db,
+      functions: {
+        addDoc,
+        collection,
+        serverTimestamp,
+        onAuthStateChanged,
+        signOut
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #0d0c1d;
+      color: white;
+    }
+    .empty-state {
+      background: linear-gradient(145deg, #1a1738, #15132b);
+      border: 1px dashed #7c3aed;
+    }
+    .interest-form {
+      background: linear-gradient(145deg, #1e1b3b, #191736);
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="p-6 flex justify-between items-center border-b border-gray-700">
+  <a href="index.html" class="text-pink-500 font-bold text-2xl">M8-Ticketing</a>
+  <div class="flex items-center gap-4">
+    <a href="login.html" id="loginBtn" class="text-white hover:text-pink-400">Login</a>
+    <a href="signup.html" id="signupBtn" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-full font-semibold">Sign Up</a>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="max-w-4xl mx-auto px-4 py-12">
+  <h1 class="text-4xl font-bold mb-8 bg-gradient-to-r from-pink-500 to-blue-500 text-transparent bg-clip-text">
+    Join Our Team
+  </h1>
+  
+  <!-- Empty State -->
+  <div class="empty-state rounded-2xl p-8 text-center mb-12">
+    <div class="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
+      <i class="fas fa-user-clock text-3xl text-pink-500"></i>
+    </div>
+    <h2 class="text-2xl font-semibold mb-2">No Open Positions Currently</h2>
+    <p class="text-gray-400 max-w-md mx-auto">
+      We're not hiring at the moment, but we're always looking for talented people to join our team in the future.
+    </p>
+  </div>
+  
+  <!-- Talent Pool Form -
+  <div class="interest-form rounded-2xl p-8">
+    <h2 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+      <i class="fas fa-envelope-open-text text-pink-500"></i> Stay Informed
+    </h2>
+    <p class="text-gray-300 mb-6">
+      Leave your email below and we'll contact you when new opportunities become available that match your profile.
+    </p>
+    
+    <form id="careerForm" class="space-y-6">
+      <div>
+        <label for="fullName" class="block text-gray-300 mb-2">Full Name</label>
+        <input 
+          type="text" 
+          id="fullName" 
+          class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none">
+      </div>
+      
+      <div>
+        <label for="careerEmail" class="block text-gray-300 mb-2">Email Address</label>
+        <input 
+          type="email" 
+          id="careerEmail" 
+          required
+          class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none">
+      </div>
+      
+      <div>
+        <label for="interestArea" class="block text-gray-300 mb-2">Area of Interest</label>
+        <select 
+          id="interestArea" 
+          class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none"
+        >
+          <option value="">Select your interest</option>
+          <option value="development">Software Development</option>
+          <option value="design">Product Design</option>
+          <option value="marketing">Marketing</option>
+          <option value="support">Customer Support</option>
+          <option value="operations">Operations</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      
+      <div>
+        <label for="message" class="block text-gray-300 mb-2">Anything else we should know?</label>
+        <textarea 
+          id="message" 
+          rows="3" 
+          class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-pink-500 focus:outline-none"
+          placeholder="Your skills, experience, or what you're looking for..."
+        ></textarea>
+      </div>
+      
+      <button 
+        type="submit" 
+        class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-3 rounded-lg font-semibold w-full transition-colors duration-200"
+      >
+        <i class="fas fa-paper-plane mr-2"></i> Notify Me About Future Opportunities
+      </button>
+    </form>
+    
+    <div id="formMessage" class="mt-4 text-center hidden"></div>
+  </div> -->
+  
+  <!-- Company Culture -->
+  <div class="mt-16">
+    <h2 class="text-2xl font-semibold mb-6 flex items-center gap-2">
+      <i class="fas fa-users text-pink-500"></i> Our Culture
+    </h2>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="bg-gray-800/50 p-6 rounded-xl">
+        <h3 class="text-xl font-semibold mb-3 text-pink-500">Innovation</h3>
+        <p class="text-gray-300">
+          We encourage creative thinking and reward initiative. Every team member has a voice.
+        </p>
+      </div>
+      <div class="bg-gray-800/50 p-6 rounded-xl">
+        <h3 class="text-xl font-semibold mb-3 text-pink-500">Flexibility</h3>
+        <p class="text-gray-300">
+          Remote work options and flexible hours to support work-life balance.
+        </p>
+      </div>
+      <div class="bg-gray-800/50 p-6 rounded-xl">
+        <h3 class="text-xl font-semibold mb-3 text-pink-500">Growth</h3>
+        <p class="text-gray-300">
+          Continuous learning with training budgets and mentorship programs.
+        </p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="border-t border-gray-700 py-12">
+  
+    <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-500">
+      &copy; 2024 M8-Ticketing. All rights reserved.
+    </div>
+  
+</footer>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const { auth, db, functions } = window.firebase;
+    const { onAuthStateChanged, signOut, addDoc, collection, serverTimestamp } = functions;
+    
+    // Handle form submission
+    const careerForm = document.getElementById('careerForm');
+    const formMessage = document.getElementById('formMessage');
+    
+    if (careerForm) {
+      careerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('fullName').value.trim();
+        const email = document.getElementById('careerEmail').value.trim();
+        const interest = document.getElementById('interestArea').value;
+        const message = document.getElementById('message').value.trim();
+        
+        // Simple validation
+        if (!email) {
+          showFormMessage('Please enter a valid email address', 'text-red-400');
+          return;
+        }
+        
+        try {
+          // Add to Firestore
+          await addDoc(collection(db, 'careerInterests'), {
+            name,
+            email,
+            interest,
+            message,
+            createdAt: serverTimestamp(),
+            status: 'new'
+          });
+          
+          showFormMessage('Thank you! We\'ll contact you when relevant positions open.', 'text-green-400');
+          careerForm.reset();
+        } catch (error) {
+          console.error('Error submitting form:', error);
+          showFormMessage('Submission failed. Please try again.', 'text-red-400');
+        }
+      });
+    }
+    
+    function showFormMessage(text, colorClass) {
+      formMessage.textContent = text;
+      formMessage.className = `mt-4 text-center ${colorClass}`;
+      formMessage.classList.remove('hidden');
+      
+      setTimeout(() => {
+        formMessage.classList.add('hidden');
+      }, 5000);
+    }
+    
+    // Handle auth state changes
+    if (auth && onAuthStateChanged) {
+      const loginBtn = document.getElementById('loginBtn');
+      const signupBtn = document.getElementById('signupBtn');
+      
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          loginBtn.textContent = 'Dashboard';
+          loginBtn.href = 'dashboard.html';
+          signupBtn.textContent = 'Logout';
+          signupBtn.href = '#';
+          signupBtn.onclick = () => signOut(auth);
+        } else {
+          loginBtn.textContent = 'Login';
+          loginBtn.href = 'login.html';
+          signupBtn.textContent = 'Sign Up';
+          signupBtn.href = 'signup.html';
+          signupBtn.onclick = null;
+        }
+      });
+    }
+  });
+</script>
+</body>
+</html>
